@@ -1,39 +1,45 @@
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 
-export default async function Home() {
-  const { userId } = await auth();
-  if (userId) redirect("/dashboard");
-
+export default function Home() {
   return (
-    <main className="min-h-screen bg-[#162329] text-[#f4efe6]">
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        <header className="flex items-center justify-between">
-          <p className="serif text-2xl">
-            Helix <span className="text-[#e8b59a]">PMS</span>
+    <main className="min-h-screen">
+      <header className="flex items-center justify-between px-6 py-5 max-w-5xl mx-auto">
+        <p className="text-lg font-medium tracking-tight">Helix PMS</p>
+        <Link
+          href="/sign-in"
+          className="rounded-md border border-[#d8cfc0] bg-white px-4 py-2 text-sm"
+        >
+          Sign In
+        </Link>
+      </header>
+
+      <section className="max-w-5xl mx-auto px-6 pt-16 pb-10">
+        <h1 className="serif text-4xl md:text-5xl">Helix PMS</h1>
+        <p className="mt-4 text-lg text-[#3d4f56] max-w-xl">
+          Performance reviews and goals for a 200-person services company.
+        </p>
+      </section>
+
+      <section className="max-w-5xl mx-auto px-6 pb-20 grid gap-4 sm:grid-cols-3">
+        <article className="rounded-xl border border-[#d8cfc0] bg-white p-5">
+          <h2 className="font-medium">Goals</h2>
+          <p className="mt-2 text-sm text-[#3d4f56]">
+            Staff set a plan, submit it, and a manager approves it or sends it back.
           </p>
-          <div className="flex gap-3 text-sm">
-            <Link href="/sign-in" className="rounded-md px-4 py-2 border border-[#d8cfc0]/40">
-              Sign in
-            </Link>
-            <Link href="/sign-up" className="rounded-md px-4 py-2 bg-[#c24e1d]">
-              Sign up
-            </Link>
-          </div>
-        </header>
-        <section className="mt-24 max-w-2xl">
-          <p className="text-xs tracking-[0.28em] uppercase text-[#9aada8]">College project · 200-person services firm</p>
-          <h1 className="serif text-5xl md:text-6xl leading-[1.05] mt-4">Performance management built for delivery work.</h1>
-          <p className="mt-6 text-lg text-[#d8cfc0]">
-            Goals, reviews, utilization, and feedback for Helix Consulting. Auth is Clerk, data lives in Supabase
-            Postgres, mail goes through Resend, and the app is meant to ship on Vercel.
+        </article>
+        <article className="rounded-xl border border-[#d8cfc0] bg-white p-5">
+          <h2 className="font-medium">Reviews</h2>
+          <p className="mt-2 text-sm text-[#3d4f56]">
+            Self-appraisal, then manager review, then a completed packet for the cycle.
           </p>
-          <Link href="/sign-in" className="inline-block mt-8 rounded-md bg-[#c24e1d] px-5 py-2.5 font-medium">
-            Enter the workspace
-          </Link>
-        </section>
-      </div>
+        </article>
+        <article className="rounded-xl border border-[#d8cfc0] bg-white p-5">
+          <h2 className="font-medium">Roles</h2>
+          <p className="mt-2 text-sm text-[#3d4f56]">
+            Employee, manager, and HR admin see the same screens with different access.
+          </p>
+        </article>
+      </section>
     </main>
   );
 }
