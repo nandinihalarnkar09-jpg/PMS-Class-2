@@ -1,37 +1,36 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { requireSession, isLineManager } from "@/lib/auth";
+import { requireAccess, canSeeReports } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { fullName, pct } from "@/lib/format";
 import { GOAL_CATEGORY, REVIEW_STATUS, ratingBand } from "@/lib/labels";
 import { displayOutcome } from "@/lib/outcomes";
+import { ROLES } from "@/lib/access";
 
 export default async function DashboardPage() {
-  const ctx = await requireSession();
-  if (!ctx) redirect("/sign-in");
-  const { user } = ctx;
-  const emp = user.employee;
-  const reportCount = emp?._count.reports ?? 0;
+  const access = await requireAccess();
+  const emp = await prisma.employee.findUnique({
+    where: { id: access.selfId },
+    include: { department: true },
+  });
 
   const [headcount, cycle, myGoals, myReview, pendingTeam, recentFeedback, deptCount] = await Promise.all([
-    prisma.employee.count(),
+    prisma.employee.count({ where: access.role === ROLES.hr_admin ? {} : { id: { in: access.visibleIds } } }),
     prisma.reviewCycle.findFirst({ where: { status: "ACTIVE" } }),
-    emp
-      ? prisma.goal.findMany({ where: { employeeId: emp.id }, orderBy: { category: "asc" } })
-      : Promise.resolve([]),
-    emp
-      ? prisma.review.findFirst({
-          where: { employeeId: emp.id },
-          include: { cycle: true, goalRatings: { include: { goal: true } } },
-        })
-      : Promise.resolve(null),
-    emp && isLineManager(reportCount)
+    prisma.goal.findMany({ where: { employeeId: access.selfId }, orderBy: { category: "asc" } }),
+    prisma.review.findFirst({
+      where: { employeeId: access.selfId },
+      include: { cycle: true, goalRatings: { include: { goal: true } } },
+    }),
+    canSeeReports(access.role)
       ? prisma.review.count({
-          where: { reviewerId: emp.id, status: { in: ["SELF_SUBMITTED", "MANAGER_IN_PROGRESS"] } },
+          where: {
+            employeeId: { in: access.visibleIds.filter((id) => id !== access.selfId) },
+            status: { in: ["SELF_SUBMITTED", "MANAGER_IN_PROGRESS"] },
+          },
         })
       : Promise.resolve(0),
     prisma.feedback.findMany({
-      where: { toId: user.id },
+      where: { toId: access.userId },
       include: { from: { include: { employee: true } } },
       orderBy: { createdAt: "desc" },
       take: 4,
@@ -43,17 +42,27 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <p className="text-xs tracking-[0.22em] uppercase text-[#3d4f56]">Helix Consulting · {headcount} people</p>
+      <p className="text-xs tracking-[0.22em] uppercase text-[#3d4f56]">
+        Signed in as {access.role.replace("_", " ")}
+      </p>
       <h1 className="serif text-4xl mt-2">Good to have you, {emp?.firstName ?? "there"}.</h1>
       <p className="mt-2 text-[#3d4f56] max-w-2xl">
-        {cycle ? `${cycle.name} (${cycle.period}) is ${cycle.status.toLowerCase()}.` : "No active cycle."} Goals are the
-        plan. Reviews and goal ratings are the outcome. A manager is an employee with reports through manager_id.
+        {access.role === ROLES.employee
+          ? "You can open your own goals and review packet. Other people’s files return not found if you change the URL."
+          : access.role === ROLES.manager
+            ? "You see your own record plus anyone under you in manager_id. Calibration stays with HR admin."
+            : "HR admin can open any employee file and lock calibrated ratings."}{" "}
+        {cycle ? `${cycle.name} (${cycle.period}) is ${cycle.status.toLowerCase()}.` : ""}
       </p>
 
       <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat k="Company" v={String(headcount)} s={`${deptCount} departments`} />
+        <Stat
+          k={access.role === ROLES.employee ? "My record" : access.role === ROLES.manager ? "Visible people" : "Company"}
+          v={String(headcount)}
+          s={`${deptCount} departments`}
+        />
         <Stat k="My utilization" v={emp ? pct(emp.utilizationActual) : "—"} s={`Target ${emp?.utilizationTarget ?? "—"}%`} />
-        <Stat k="Plan" v={String(myGoals.length)} s="goals this cycle (not scores)" />
+        <Stat k="My plan" v={String(myGoals.length)} s="goals this cycle" />
         <Stat
           k="My review"
           v={myReview ? REVIEW_STATUS[myReview.status] : "—"}
@@ -61,11 +70,11 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {isLineManager(reportCount) ? (
+      {canSeeReports(access.role) ? (
         <div className="mt-6 rounded-xl border border-[#d8cfc0] bg-white px-5 py-4 flex items-center justify-between gap-4">
           <div>
-            <p className="font-medium">Team queue</p>
-            <p className="text-sm text-[#3d4f56]">{pendingTeam} review{pendingTeam === 1 ? "" : "s"} waiting on you.</p>
+            <p className="font-medium">{access.role === ROLES.hr_admin ? "Company queue" : "Team queue"}</p>
+            <p className="text-sm text-[#3d4f56]">{pendingTeam} review{pendingTeam === 1 ? "" : "s"} waiting.</p>
           </div>
           <Link href="/reviews" className="text-sm text-[#c24e1d] font-medium">
             Open reviews →

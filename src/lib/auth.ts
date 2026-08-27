@@ -1,10 +1,23 @@
+import { notFound, redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "./db";
+import {
+  ROLES,
+  type Role,
+  canCalibrate,
+  canSeePeopleDirectory,
+  canSeeReports,
+  canViewEmployee,
+  canWriteManagerReview,
+  normalizeRole,
+  visibleEmployeeIds,
+} from "./access";
 
 export type SessionUser = {
   id: string;
   email: string;
-  role: string;
+  role: Role;
   employeeId: string | null;
   name: string;
 };
@@ -42,19 +55,21 @@ export async function requireSession() {
       include: employeeInclude,
     });
     if (existing) {
+      const role = normalizeRole(existing.role);
       user = await prisma.user.update({
         where: { id: existing.id },
-        data: { clerkId: userId },
+        data: { clerkId: userId, role },
         include: employeeInclude,
       });
     } else {
       user = await prisma.user.create({
-        data: { clerkId: userId, email, role: "EMPLOYEE" },
+        data: { clerkId: userId, email, role: ROLES.employee },
         include: employeeInclude,
       });
     }
   }
 
+  const role = normalizeRole(user.role);
   const name = user.employee
     ? `${user.employee.firstName} ${user.employee.lastName}`
     : clerkUser?.fullName ?? email;
@@ -63,22 +78,76 @@ export async function requireSession() {
     session: {
       id: user.id,
       email: user.email,
-      role: user.role,
+      role,
       employeeId: user.employee?.id ?? null,
       name,
     } satisfies SessionUser,
-    user,
+    user: { ...user, role },
+    role,
   };
 }
 
-export function canManagePeople(role: string) {
-  return role === "ADMIN" || role === "HR";
+export type AccessContext = {
+  role: Role;
+  selfId: string;
+  userId: string;
+  name: string;
+  visibleIds: string[];
+  visible: Set<string>;
+};
+
+export async function requireAccess(): Promise<AccessContext> {
+  const ctx = await requireSession();
+  if (!ctx?.user.employee) redirect("/sign-in");
+  const selfId = ctx.user.employee.id;
+  const org = await prisma.employee.findMany({ select: { id: true, managerId: true } });
+  const visibleIds = visibleEmployeeIds(ctx.role, selfId, org);
+  return {
+    role: ctx.role,
+    selfId,
+    userId: ctx.user.id,
+    name: ctx.session.name,
+    visibleIds,
+    visible: new Set(visibleIds),
+  };
 }
 
-export function isLeader(role: string, reportCount = 0) {
-  return role === "ADMIN" || role === "HR" || reportCount > 0;
+export function assertCanViewEmployee(access: AccessContext, targetId: string) {
+  if (!canViewEmployee(access.role, access.selfId, targetId, access.visible)) {
+    notFound();
+  }
 }
 
-export function isLineManager(reportCount: number) {
-  return reportCount > 0;
+export function assertCanWriteManagerReview(
+  access: AccessContext,
+  review: { employeeId: string; reviewerId: string | null },
+) {
+  if (!canWriteManagerReview(access.role, access.selfId, review, access.visible)) {
+    notFound();
+  }
 }
+
+export function assertHrAdmin(access: AccessContext) {
+  if (!canCalibrate(access.role)) notFound();
+}
+
+export function assertCanSeeReports(access: AccessContext) {
+  if (!canSeeReports(access.role)) notFound();
+}
+
+export function employeeScope(access: AccessContext): Prisma.EmployeeWhereInput {
+  if (access.role === ROLES.hr_admin) return {};
+  return { id: { in: access.visibleIds } };
+}
+
+export function reviewScope(access: AccessContext): Prisma.ReviewWhereInput {
+  if (access.role === ROLES.hr_admin) return {};
+  return { employeeId: { in: access.visibleIds } };
+}
+
+export function goalScope(access: AccessContext): Prisma.GoalWhereInput {
+  if (access.role === ROLES.hr_admin) return {};
+  return { employeeId: { in: access.visibleIds } };
+}
+
+export { canCalibrate, canSeePeopleDirectory, canSeeReports, ROLES, normalizeRole };

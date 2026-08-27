@@ -1,8 +1,7 @@
 export const ROLE_LABEL: Record<string, string> = {
-  ADMIN: "Admin",
-  HR: "HR",
-  MANAGER: "Manager",
-  EMPLOYEE: "Employee",
+  employee: "Employee",
+  manager: "Manager",
+  hr_admin: "HR admin",
 };
 
 export const REVIEW_STATUS: Record<string, string> = {
@@ -42,8 +41,7 @@ export function ratingBand(value: number | null | undefined) {
 }
 
 export const DEMO_ACCOUNTS = [
-  { email: "admin@helix.consulting", role: "Admin", name: "Kabir Shah" },
-  { email: "hr@helix.consulting", role: "HR", name: "Ananya Iyer" },
-  { email: "manager@helix.consulting", role: "Manager", name: "Rohan Desai" },
-  { email: "employee@helix.consulting", role: "Employee", name: "Diya Patel" },
+  { email: "hr@helix.consulting", role: "hr_admin", name: "Ananya Iyer" },
+  { email: "manager@helix.consulting", role: "manager", name: "Rohan Desai" },
+  { email: "employee@helix.consulting", role: "employee", name: "Diya Patel" },
 ];

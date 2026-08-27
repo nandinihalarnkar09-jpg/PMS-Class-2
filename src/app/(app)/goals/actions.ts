@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireSession, canManagePeople, isLeader } from "@/lib/auth";
+import { requireAccess, assertCanViewEmployee } from "@/lib/auth";
 
 async function attachRatingIfReviewExists(goalId: string, employeeId: string, cycleId: string) {
   const review = await prisma.review.findUnique({
@@ -18,17 +18,11 @@ async function attachRatingIfReviewExists(goalId: string, employeeId: string, cy
 }
 
 export async function updateGoalPlan(formData: FormData) {
-  const ctx = await requireSession();
-  if (!ctx) redirect("/sign-in");
+  const access = await requireAccess();
   const id = String(formData.get("id") || "");
   const goal = await prisma.goal.findUnique({ where: { id } });
-  if (!goal) return;
-  const reportCount = ctx.user.employee?._count.reports ?? 0;
-  const allowed =
-    goal.employeeId === ctx.user.employee?.id ||
-    canManagePeople(ctx.user.role) ||
-    isLeader(ctx.user.role, reportCount);
-  if (!allowed) return;
+  if (!goal) notFound();
+  assertCanViewEmployee(access, goal.employeeId);
   await prisma.goal.update({
     where: { id },
     data: {
@@ -44,15 +38,14 @@ export async function updateGoalPlan(formData: FormData) {
 }
 
 export async function addGoal(formData: FormData) {
-  const ctx = await requireSession();
-  if (!ctx?.user.employee) redirect("/sign-in");
+  const access = await requireAccess();
   const cycle = await prisma.reviewCycle.findFirst({ where: { status: "ACTIVE" } });
   if (!cycle) return;
   const title = String(formData.get("title") || "").trim();
   if (!title) return;
   const goal = await prisma.goal.create({
     data: {
-      employeeId: ctx.user.employee.id,
+      employeeId: access.selfId,
       cycleId: cycle.id,
       title,
       description: String(formData.get("description") || "").trim() || "Added during the live cycle.",
@@ -61,6 +54,6 @@ export async function addGoal(formData: FormData) {
       weight: Number(formData.get("weight") || 10),
     },
   });
-  await attachRatingIfReviewExists(goal.id, ctx.user.employee.id, cycle.id);
+  await attachRatingIfReviewExists(goal.id, access.selfId, cycle.id);
   revalidatePath("/goals");
 }

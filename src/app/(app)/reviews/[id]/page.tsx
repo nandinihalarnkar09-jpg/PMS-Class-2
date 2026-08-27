@@ -1,16 +1,20 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireSession, canManagePeople } from "@/lib/auth";
+import { requireAccess, assertCanViewEmployee } from "@/lib/auth";
+import { canCalibrate, canWriteManagerReview } from "@/lib/access";
+import { ensureGoalRatings } from "@/lib/review-ratings";
 import { fullName } from "@/lib/format";
 import { GOAL_CATEGORY, RATING_BANDS, REVIEW_STATUS, ratingBand } from "@/lib/labels";
 import { displayOutcome, weightedScore } from "@/lib/outcomes";
-import { acknowledgeReview, calibrateReview, ensureGoalRatings, saveManagerReview, saveSelfReview } from "../actions";
+import { acknowledgeReview, calibrateReview, saveManagerReview, saveSelfReview } from "../actions";
 
 export default async function ReviewDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireSession();
-  if (!ctx) redirect("/sign-in");
+  const access = await requireAccess();
   const { id } = await params;
+  const existing = await prisma.review.findUnique({ where: { id }, select: { employeeId: true } });
+  if (!existing) notFound();
+  assertCanViewEmployee(access, existing.employeeId);
   await ensureGoalRatings(id);
   const review = await prisma.review.findUnique({
     where: { id },
@@ -23,12 +27,9 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
   });
   if (!review) notFound();
 
-  const isSubject = review.employeeId === ctx.user.employee?.id;
-  const isReviewer = review.reviewerId === ctx.user.employee?.id;
-  const hr = canManagePeople(ctx.user.role);
-  if (!isSubject && !isReviewer && !hr) {
-    return <p>You do not have access to this review packet.</p>;
-  }
+  const isSubject = review.employeeId === access.selfId;
+  const canManagerWrite = canWriteManagerReview(access.role, access.selfId, review, access.visible);
+  const hr = canCalibrate(access.role);
 
   const outcome = displayOutcome(review.goalRatings, review.finalRating);
   const band = ratingBand(outcome);
@@ -152,7 +153,7 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
         </section>
       )}
 
-      {isReviewer || hr ? (
+      {canManagerWrite ? (
         <section className="mt-8 rounded-xl border border-[#d8cfc0] bg-white p-5">
           <h2 className="serif text-2xl">Manager write-up</h2>
           <form action={saveManagerReview} className="mt-4 space-y-4">

@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       });
     } else {
       await prisma.user.create({
-        data: { clerkId: event.data.id, email, role: "EMPLOYEE" },
+        data: { clerkId: event.data.id, email, role: "employee" },
       });
     }
   }

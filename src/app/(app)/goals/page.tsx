@@ -1,44 +1,41 @@
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireSession, canManagePeople, isLeader } from "@/lib/auth";
+import { requireAccess, goalScope } from "@/lib/auth";
 import { GOAL_CATEGORY } from "@/lib/labels";
 import { addGoal, updateGoalPlan } from "./actions";
+import { ROLES } from "@/lib/access";
 
 export default async function GoalsPage() {
-  const ctx = await requireSession();
-  if (!ctx) redirect("/sign-in");
-  const emp = ctx.user.employee;
-  if (!emp) return <p>No employee profile linked.</p>;
-  const reportCount = emp._count.reports;
+  const access = await requireAccess();
 
   const own = await prisma.goal.findMany({
-    where: { employeeId: emp.id },
+    where: { employeeId: access.selfId },
     include: { cycle: true },
     orderBy: { category: "asc" },
   });
 
   const team =
-    isLeader(ctx.user.role, reportCount)
-      ? await prisma.goal.findMany({
-          where: canManagePeople(ctx.user.role) ? {} : { employee: { managerId: emp.id } },
+    access.role === ROLES.employee
+      ? []
+      : await prisma.goal.findMany({
+          where: { AND: [goalScope(access), { employeeId: { not: access.selfId } }] },
           include: { employee: true, cycle: true },
           take: 40,
           orderBy: { title: "asc" },
-        })
-      : [];
-
-  const visibleTeam = team.filter((g) => g.employeeId !== emp.id);
+        });
 
   return (
     <div>
       <h1 className="serif text-4xl">Goals</h1>
       <p className="mt-2 text-[#3d4f56]">
-        This is the plan: what you committed to and how it is weighted. Scores belong on the review packet as goal
-        ratings — they are not stored here.
+        Plan only. {access.role === ROLES.employee
+          ? "You can edit your own goals. Another employee’s goal id in the URL will not load."
+          : access.role === ROLES.manager
+            ? "You can edit plans for yourself and people under you in manager_id."
+            : "HR admin can open any plan in the company."}
       </p>
 
       <form action={addGoal} className="mt-8 rounded-xl border border-[#d8cfc0] bg-white p-4 grid md:grid-cols-2 gap-3">
-        <p className="md:col-span-2 font-medium">Add a goal to the plan</p>
+        <p className="md:col-span-2 font-medium">Add a goal to your plan</p>
         <input name="title" required placeholder="Title" className="rounded-md border border-[#d8cfc0] px-3 py-2" />
         <select name="category" className="rounded-md border border-[#d8cfc0] px-3 py-2">
           {Object.entries(GOAL_CATEGORY).map(([k, v]) => (
@@ -84,12 +81,11 @@ export default async function GoalsPage() {
         ))}
       </ul>
 
-      {visibleTeam.length > 0 ? (
+      {team.length > 0 ? (
         <section className="mt-12">
-          <h2 className="serif text-2xl">Team plans</h2>
-          <p className="text-sm text-[#3d4f56] mt-1">People who report to you via manager_id.</p>
+          <h2 className="serif text-2xl">{access.role === ROLES.hr_admin ? "Company plans" : "Team plans"}</h2>
           <ul className="mt-4 divide-y divide-[#d8cfc0] rounded-xl border border-[#d8cfc0] bg-white">
-            {visibleTeam.map((g) => (
+            {team.map((g) => (
               <li key={g.id} className="px-4 py-3 flex justify-between gap-3 text-sm">
                 <span>
                   <span className="font-medium">

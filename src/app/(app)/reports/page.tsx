@@ -1,24 +1,14 @@
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireSession, canManagePeople, isLeader } from "@/lib/auth";
+import { requireAccess, assertCanSeeReports, reviewScope } from "@/lib/auth";
 import { RATING_BANDS, ratingBand } from "@/lib/labels";
 import { displayOutcome } from "@/lib/outcomes";
 
 export default async function ReportsPage() {
-  const ctx = await requireSession();
-  if (!ctx) redirect("/sign-in");
-  const reportCount = ctx.user.employee?._count.reports ?? 0;
-  if (!isLeader(ctx.user.role, reportCount)) {
-    return (
-      <div>
-        <h1 className="serif text-4xl">Reports</h1>
-        <p className="mt-3 text-[#3d4f56]">Org-level reports are available to people with direct reports, HR, and admin.</p>
-      </div>
-    );
-  }
+  const access = await requireAccess();
+  assertCanSeeReports(access);
 
   const reviews = await prisma.review.findMany({
-    where: canManagePeople(ctx.user.role) ? {} : { reviewerId: ctx.user.employee?.id ?? "__none__" },
+    where: reviewScope(access),
     include: {
       employee: { include: { department: true } },
       goalRatings: { include: { goal: true } },

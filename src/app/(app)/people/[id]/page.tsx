@@ -1,22 +1,26 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireAccess, assertCanViewEmployee, canSeePeopleDirectory } from "@/lib/auth";
 import { formatDate, fullName, initials, pct } from "@/lib/format";
 import { GOAL_CATEGORY, REVIEW_STATUS, ROLE_LABEL, ratingBand } from "@/lib/labels";
 import { displayOutcome } from "@/lib/outcomes";
 
 export default async function PersonPage({ params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireSession();
-  if (!ctx) redirect("/sign-in");
+  const access = await requireAccess();
   const { id } = await params;
+  assertCanViewEmployee(access, id);
   const person = await prisma.employee.findUnique({
     where: { id },
     include: {
       department: true,
       user: true,
       manager: true,
-      reports: { take: 12, orderBy: { lastName: "asc" } },
+      reports: {
+        where: { id: { in: access.visibleIds } },
+        take: 12,
+        orderBy: { lastName: "asc" },
+      },
       goals: { orderBy: { category: "asc" } },
       reviews: { include: { cycle: true, goalRatings: { include: { goal: true } } }, take: 1 },
     },
@@ -27,8 +31,8 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 
   return (
     <div>
-      <Link href="/people" className="text-sm text-[#1f6f64]">
-        ← People
+      <Link href={canSeePeopleDirectory(access.role) ? "/people" : "/dashboard"} className="text-sm text-[#1f6f64]">
+        {canSeePeopleDirectory(access.role) ? "← People" : "← Home"}
       </Link>
       <div className="mt-4 flex items-start gap-4">
         <div className="h-16 w-16 rounded-full bg-[#162329] text-white grid place-items-center text-xl">
@@ -41,7 +45,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
           </p>
           <p className="text-sm text-[#3d4f56] mt-1">
             {person.employeeCode} · Band {person.band} · Joined {formatDate(person.joinDate)} ·{" "}
-            {ROLE_LABEL[person.user.role]}
+                {ROLE_LABEL[person.user.role] ?? person.user.role}
           </p>
         </div>
       </div>

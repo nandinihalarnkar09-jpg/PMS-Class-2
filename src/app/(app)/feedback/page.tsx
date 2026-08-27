@@ -1,27 +1,25 @@
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { FEEDBACK_TYPE } from "@/lib/labels";
 import { formatDate, fullName } from "@/lib/format";
 import { sendFeedback } from "./actions";
 
 export default async function FeedbackPage() {
-  const ctx = await requireSession();
-  if (!ctx) redirect("/sign-in");
+  const access = await requireAccess();
 
   const [inbox, sent, colleagues] = await Promise.all([
     prisma.feedback.findMany({
-      where: { toId: ctx.user.id },
+      where: { toId: access.userId },
       include: { from: { include: { employee: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.feedback.findMany({
-      where: { fromId: ctx.user.id },
+      where: { fromId: access.userId },
       include: { to: { include: { employee: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.employee.findMany({
-      where: { userId: { not: ctx.user.id } },
+      where: { userId: { not: access.userId } },
       include: { user: true },
       orderBy: { lastName: "asc" },
       take: 80,

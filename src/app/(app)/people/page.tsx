@@ -1,23 +1,27 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireAccess, canSeePeopleDirectory, employeeScope } from "@/lib/auth";
 import { fullName, initials, pct } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
+import { ROLES } from "@/lib/access";
 
 export default async function PeoplePage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; dept?: string }>;
 }) {
-  const ctx = await requireSession();
-  if (!ctx) redirect("/sign-in");
+  const access = await requireAccess();
+  if (!canSeePeopleDirectory(access.role)) {
+    redirect(`/people/${access.selfId}`);
+  }
   const { q = "", dept = "" } = await searchParams;
 
   const departments = await prisma.department.findMany({ orderBy: { name: "asc" } });
   const people = await prisma.employee.findMany({
     where: {
       AND: [
+        employeeScope(access),
         dept ? { departmentId: dept } : {},
         q
           ? {
@@ -36,13 +40,15 @@ export default async function PeoplePage({
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     take: 80,
   });
-  const total = await prisma.employee.count();
+  const total = await prisma.employee.count({ where: employeeScope(access) });
 
   return (
     <div>
       <h1 className="serif text-4xl">People</h1>
       <p className="mt-2 text-[#3d4f56]">
-        {total} colleagues across Helix. Search name, title, or employee code.
+        {access.role === ROLES.hr_admin
+          ? `Full directory (${total}).`
+          : `Your reporting line only (${total} people). Records outside this set return not found.`}
       </p>
 
       <form className="mt-6 flex flex-wrap gap-2">
@@ -93,7 +99,7 @@ export default async function PeoplePage({
                 <td className="px-4 py-3">{p.department.name}</td>
                 <td className="px-4 py-3">{p.manager ? fullName(p.manager) : "—"}</td>
                 <td className="px-4 py-3">{pct(p.utilizationActual)}</td>
-                <td className="px-4 py-3">{ROLE_LABEL[p.user.role]}</td>
+                <td className="px-4 py-3">{ROLE_LABEL[p.user.role] ?? p.user.role}</td>
               </tr>
             ))}
           </tbody>

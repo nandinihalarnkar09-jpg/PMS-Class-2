@@ -12,7 +12,7 @@ Performance management for a ~200-person services company (college project). Fic
 | Email | [Resend](https://resend.com) (feedback + review events) |
 | Hosting | [Vercel](https://vercel.com) |
 
-Roles live in Postgres for app access (`ADMIN`, `HR`, `EMPLOYEE`). Org hierarchy is **not** a managers table: `employees.manager_id` points at another employee. Anyone with reports is a manager.
+Roles live in Postgres as one of **`employee`**, **`manager`**, **`hr_admin`**. Org hierarchy is still `employees.manager_id` (not a managers table). Every read and write that touches another person’s file is checked on the server; changing a URL as an employee returns **not found**.
 
 ## Domain model
 
@@ -64,11 +64,11 @@ Open [http://localhost:3000](http://localhost:3000). Create Clerk users whose em
 
 | Email | Role | Person |
 | --- | --- | --- |
-| `employee@helix.consulting` | Employee | Diya Patel |
-| `manager@helix.consulting` | Manager | Rohan Desai |
-| `hr@helix.consulting` | HR | Ananya Iyer |
-| `admin@helix.consulting` | Admin | Kabir Shah |
-| `ceo@helix.consulting` | Admin | Leela Menon |
+| `employee@helix.consulting` | employee | Diya Patel |
+| `manager@helix.consulting` | manager | Rohan Desai |
+| `hr@helix.consulting` | hr_admin | Ananya Iyer |
+| `admin@helix.consulting` | hr_admin | Kabir Shah |
+| `ceo@helix.consulting` | hr_admin | Leela Menon |
 
 If those domains are awkward in Clerk, change the seeded emails in `prisma/seed.ts` to addresses you control, re-seed, and sign up with those.
 

@@ -87,11 +87,11 @@ async function main() {
 
   const planned: Planned[] = [];
   const named: Planned[] = [
-    { key: "ceo", userId: randomUUID(), empId: randomUUID(), email: "ceo@helix.consulting", first: "Leela", last: "Menon", title: "Chief Executive Officer", role: "ADMIN", deptIndex: 0, band: "D1", util: 38 },
-    { key: "admin", userId: randomUUID(), empId: randomUUID(), email: "admin@helix.consulting", first: "Kabir", last: "Shah", title: "People Systems Admin", role: "ADMIN", deptIndex: 5, band: "C1", util: 65, managerKey: "ceo" },
-    { key: "hr", userId: randomUUID(), empId: randomUUID(), email: "hr@helix.consulting", first: "Ananya", last: "Iyer", title: "HR Business Partner", role: "HR", deptIndex: 5, band: "C1", util: 72, managerKey: "ceo" },
-    { key: "manager", userId: randomUUID(), empId: randomUUID(), email: "manager@helix.consulting", first: "Rohan", last: "Desai", title: "Delivery Manager", role: "MANAGER", deptIndex: 1, band: "C2", util: 78, managerKey: "ceo" },
-    { key: "employee", userId: randomUUID(), empId: randomUUID(), email: "employee@helix.consulting", first: "Diya", last: "Patel", title: "Consultant", role: "EMPLOYEE", deptIndex: 2, band: "B1", util: 86, managerKey: "manager" },
+    { key: "ceo", userId: randomUUID(), empId: randomUUID(), email: "ceo@helix.consulting", first: "Leela", last: "Menon", title: "Chief Executive Officer", role: "hr_admin", deptIndex: 0, band: "D1", util: 38 },
+    { key: "admin", userId: randomUUID(), empId: randomUUID(), email: "admin@helix.consulting", first: "Kabir", last: "Shah", title: "People Systems Admin", role: "hr_admin", deptIndex: 5, band: "C1", util: 65, managerKey: "ceo" },
+    { key: "hr", userId: randomUUID(), empId: randomUUID(), email: "hr@helix.consulting", first: "Ananya", last: "Iyer", title: "HR Business Partner", role: "hr_admin", deptIndex: 5, band: "C1", util: 72, managerKey: "ceo" },
+    { key: "manager", userId: randomUUID(), empId: randomUUID(), email: "manager@helix.consulting", first: "Rohan", last: "Desai", title: "Delivery Manager", role: "manager", deptIndex: 1, band: "C2", util: 78, managerKey: "ceo" },
+    { key: "employee", userId: randomUUID(), empId: randomUUID(), email: "employee@helix.consulting", first: "Diya", last: "Patel", title: "Consultant", role: "employee", deptIndex: 2, band: "B1", util: 86, managerKey: "manager" },
   ];
   planned.push(...named);
 
@@ -113,7 +113,7 @@ async function main() {
       first: pick(FIRST, deptIndex + 4),
       last: pick(LAST, deptIndex + 9),
       title: headTitles[deptIndex],
-      role: "MANAGER",
+      role: "manager",
       deptIndex,
       band: "D1",
       util: DEPARTMENTS[deptIndex].util - 10,
@@ -143,7 +143,7 @@ async function main() {
       first,
       last,
       title: pick(d.titles, seq),
-      role: isMgr ? "MANAGER" : "EMPLOYEE",
+      role: isMgr ? "manager" : "employee",
       deptIndex: slot.idx,
       band: pick(BANDS, seq),
       util: clamp(d.util + ((seq * 7) % 21) - 10, 30, 110),
@@ -296,11 +296,11 @@ async function main() {
 
   console.log(`Seeded ${planned.length} employees for ${cycle.name}.`);
   console.log("Create matching Clerk users (same emails). After first sign-in, clerkId is linked automatically.");
-  console.log("  employee@helix.consulting  EMPLOYEE  Diya Patel");
-  console.log("  manager@helix.consulting   MANAGER   Rohan Desai");
-  console.log("  hr@helix.consulting        HR        Ananya Iyer");
-  console.log("  admin@helix.consulting     ADMIN     Kabir Shah");
-  console.log("  ceo@helix.consulting       ADMIN     Leela Menon");
+  console.log("  employee@helix.consulting  employee   Diya Patel");
+  console.log("  manager@helix.consulting   manager    Rohan Desai");
+  console.log("  hr@helix.consulting        hr_admin   Ananya Iyer");
+  console.log("  admin@helix.consulting     hr_admin   Kabir Shah");
+  console.log("  ceo@helix.consulting       hr_admin   Leela Menon");
 }
 
 main()

@@ -1,23 +1,22 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireAccess, canSeePeopleDirectory, canSeeReports } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/labels";
 import { initials } from "@/lib/format";
 import { UserMenu } from "@/components/user-menu";
-
-const NAV = [
-  { href: "/dashboard", label: "Home" },
-  { href: "/people", label: "People" },
-  { href: "/goals", label: "Goals" },
-  { href: "/reviews", label: "Reviews" },
-  { href: "/feedback", label: "Feedback" },
-  { href: "/reports", label: "Reports" },
-];
+import { prisma } from "@/lib/db";
+import { ROLES } from "@/lib/access";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const ctx = await requireSession();
-  if (!ctx) redirect("/sign-in");
-  const emp = ctx.user.employee;
+  const access = await requireAccess();
+  const emp = await prisma.employee.findUnique({ where: { id: access.selfId } });
+  const nav = [
+    { href: "/dashboard", label: "Home" },
+    ...(canSeePeopleDirectory(access.role) ? [{ href: "/people", label: "People" }] : [{ href: `/people/${access.selfId}`, label: "My file" }]),
+    { href: "/goals", label: "Goals" },
+    { href: "/reviews", label: "Reviews" },
+    { href: "/feedback", label: "Feedback" },
+    ...(canSeeReports(access.role) ? [{ href: "/reports", label: "Reports" }] : []),
+  ];
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[240px_1fr]">
@@ -25,9 +24,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Link href="/dashboard" className="serif text-2xl tracking-tight">
           Helix <span className="text-[#e8b59a]">PMS</span>
         </Link>
-        <p className="mt-1 text-xs text-[#9aada8]">FY 2025–26 appraisal</p>
+        <p className="mt-1 text-xs text-[#9aada8]">
+          {ROLE_LABEL[access.role]} · {access.role === ROLES.employee ? "own record only" : access.role === ROLES.manager ? "your reporting line" : "full company"}
+        </p>
         <nav className="mt-10 flex lg:flex-col gap-1 overflow-x-auto">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -43,8 +44,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               {initials(emp)}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{ctx.session.name}</p>
-              <p className="text-xs text-[#9aada8]">{ROLE_LABEL[ctx.user.role] ?? ctx.user.role}</p>
+              <p className="truncate text-sm font-medium">{access.name}</p>
+              <p className="text-xs text-[#9aada8]">{ROLE_LABEL[access.role]}</p>
             </div>
           </div>
           <div className="mt-4">
@@ -54,7 +55,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
       <div className="min-w-0">
         <header className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-[#d8cfc0] bg-[#f4efe6]">
-          <p className="font-medium truncate">{ctx.session.name}</p>
+          <p className="font-medium truncate">{access.name}</p>
           <UserMenu />
         </header>
         <div className="p-5 lg:p-10 max-w-6xl">{children}</div>
