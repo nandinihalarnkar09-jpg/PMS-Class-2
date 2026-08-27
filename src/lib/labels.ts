@@ -4,14 +4,18 @@ export const ROLE_LABEL: Record<string, string> = {
   hr_admin: "HR admin",
 };
 
+export const GOAL_STATUS: Record<string, string> = {
+  draft: "Draft",
+  submitted: "Submitted",
+  approved: "Approved",
+  sent_back: "Sent back",
+};
+
 export const REVIEW_STATUS: Record<string, string> = {
-  NOT_STARTED: "Not started",
-  SELF_IN_PROGRESS: "Self-review",
-  SELF_SUBMITTED: "Awaiting manager",
-  MANAGER_IN_PROGRESS: "Manager review",
-  MANAGER_SUBMITTED: "In calibration",
-  CALIBRATED: "Calibrated",
-  ACKNOWLEDGED: "Acknowledged",
+  not_started: "Not started",
+  self_appraisal_submitted: "Self-appraisal submitted",
+  manager_reviewed: "Manager reviewed",
+  completed: "Completed",
 };
 
 export const GOAL_CATEGORY: Record<string, string> = {

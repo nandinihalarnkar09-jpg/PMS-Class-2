@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAccess, assertCanViewEmployee, canSeePeopleDirectory } from "@/lib/auth";
 import { formatDate, fullName, initials, pct } from "@/lib/format";
-import { GOAL_CATEGORY, REVIEW_STATUS, ROLE_LABEL, ratingBand } from "@/lib/labels";
+import { GOAL_CATEGORY, GOAL_STATUS, REVIEW_STATUS, ROLE_LABEL, ratingBand } from "@/lib/labels";
 import { displayOutcome } from "@/lib/outcomes";
 
 export default async function PersonPage({ params }: { params: Promise<{ id: string }> }) {
@@ -89,7 +89,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
             <li key={g.id} className="rounded-xl border border-[#d8cfc0] bg-white p-4">
               <div className="flex justify-between gap-2">
                 <p className="font-medium">{g.title}</p>
-                <span className="text-xs">{GOAL_CATEGORY[g.category]} · {g.weight}%</span>
+                <span className="text-xs">{GOAL_STATUS[g.status] ?? g.status} · {GOAL_CATEGORY[g.category]} · {g.weight}%</span>
               </div>
               <p className="text-sm text-[#3d4f56] mt-1">{g.description}</p>
             </li>

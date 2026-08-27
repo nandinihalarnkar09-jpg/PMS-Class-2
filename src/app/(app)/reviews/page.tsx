@@ -33,7 +33,7 @@ export default async function ReviewsPage() {
           ? "Only your packet is listed. Another review id in the address bar returns not found."
           : access.role === ROLES.manager
             ? "Your packet plus people under you. You cannot open a peer’s packet."
-            : "Company queue. You can calibrate final ratings."}
+            : "Company queue. You can mark manager_reviewed packets completed."}
       </p>
 
       <h2 className="serif text-2xl mt-10">My packet</h2>

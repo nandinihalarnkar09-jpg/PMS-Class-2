@@ -9,6 +9,7 @@ import { fullName } from "@/lib/format";
 import { weightedScore } from "@/lib/outcomes";
 import { ensureGoalRatings } from "@/lib/review-ratings";
 import { ROLES } from "@/lib/access";
+import { GOAL_STATES, REVIEW_STATES, canTransitionReview } from "@/lib/workflow";
 
 function scoresFromForm(formData: FormData, prefix: "self" | "manager" | "final", allowedIds: Set<string>) {
   const rows = new Map<string, { score?: number; comment?: string }>();
@@ -32,26 +33,37 @@ function scoresFromForm(formData: FormData, prefix: "self" | "manager" | "final"
   return rows;
 }
 
+async function allowedRatingIds(reviewId: string) {
+  await ensureGoalRatings(reviewId);
+  const ratingRows = await prisma.goalRating.findMany({ where: { reviewId }, select: { id: true } });
+  return new Set(ratingRows.map((r) => r.id));
+}
+
 export async function saveSelfReview(formData: FormData) {
   const access = await requireAccess();
   const id = String(formData.get("id") || "");
   const review = await prisma.review.findUnique({
     where: { id },
-    include: { employee: true, reviewer: { include: { user: true } }, goalRatings: true },
+    include: { employee: true, reviewer: { include: { user: true } } },
   });
   if (!review) notFound();
   if (review.employeeId !== access.selfId) notFound();
-  await ensureGoalRatings(id);
-  const ratingRows = await prisma.goalRating.findMany({ where: { reviewId: id }, select: { id: true } });
-  const allowedIds = new Set(ratingRows.map((r) => r.id));
+  if (review.status !== REVIEW_STATES.not_started) notFound();
+  const allowedIds = await allowedRatingIds(id);
   const submit = String(formData.get("intent")) === "submit";
+  const goals = await prisma.goal.findMany({ where: { employeeId: review.employeeId, cycleId: review.cycleId } });
+  const plansReady = goals.length === 0 || goals.every((g) => g.status === GOAL_STATES.approved);
+  const next = submit && plansReady ? REVIEW_STATES.self_appraisal_submitted : REVIEW_STATES.not_started;
+  if (submit && next === REVIEW_STATES.self_appraisal_submitted && !canTransitionReview(review.status, next)) {
+    notFound();
+  }
   const scores = scoresFromForm(formData, "self", allowedIds);
   await prisma.$transaction([
     prisma.review.update({
       where: { id },
       data: {
         selfSummary: String(formData.get("selfSummary") || ""),
-        status: submit ? "SELF_SUBMITTED" : "SELF_IN_PROGRESS",
+        status: next,
       },
     }),
     ...[...scores.entries()].map(([ratingId, row]) =>
@@ -64,12 +76,12 @@ export async function saveSelfReview(formData: FormData) {
       }),
     ),
   ]);
-  if (submit && review.reviewer?.user.email) {
+  if (next === REVIEW_STATES.self_appraisal_submitted && review.reviewer?.user.email) {
     await emailReviewEvent({
       toEmail: review.reviewer.user.email,
       toName: fullName(review.reviewer),
-      subject: `${fullName(review.employee)} submitted a self-review`,
-      body: "A self-review is waiting on you in Helix PMS.",
+      subject: `${fullName(review.employee)} submitted a self-appraisal`,
+      body: "A self-appraisal is waiting on you in Helix PMS.",
       reviewId: id,
     });
   }
@@ -82,21 +94,22 @@ export async function saveManagerReview(formData: FormData) {
   const id = String(formData.get("id") || "");
   const review = await prisma.review.findUnique({
     where: { id },
-    include: { employee: { include: { user: true } }, goalRatings: true },
+    include: { employee: { include: { user: true } } },
   });
   if (!review) notFound();
   assertCanWriteManagerReview(access, review);
-  await ensureGoalRatings(id);
-  const ratingRows = await prisma.goalRating.findMany({ where: { reviewId: id }, select: { id: true } });
-  const allowedIds = new Set(ratingRows.map((r) => r.id));
+  if (review.status !== REVIEW_STATES.self_appraisal_submitted) notFound();
+  const allowedIds = await allowedRatingIds(id);
   const submit = String(formData.get("intent")) === "submit";
+  const next = submit ? REVIEW_STATES.manager_reviewed : REVIEW_STATES.self_appraisal_submitted;
+  if (submit && !canTransitionReview(review.status, next)) notFound();
   const scores = scoresFromForm(formData, "manager", allowedIds);
   await prisma.$transaction([
     prisma.review.update({
       where: { id },
       data: {
         managerSummary: String(formData.get("managerSummary") || ""),
-        status: submit ? "MANAGER_SUBMITTED" : "MANAGER_IN_PROGRESS",
+        status: next,
       },
     }),
     ...[...scores.entries()].map(([ratingId, row]) =>
@@ -116,8 +129,8 @@ export async function saveManagerReview(formData: FormData) {
         emailReviewEvent({
           toEmail: u.email,
           toName: "People team",
-          subject: `Ready for calibration: ${fullName(review.employee)}`,
-          body: "A manager review was submitted and is ready for HR calibration.",
+          subject: `Manager reviewed: ${fullName(review.employee)}`,
+          body: "A manager review is ready to mark completed.",
           reviewId: id,
         }),
       ),
@@ -127,18 +140,14 @@ export async function saveManagerReview(formData: FormData) {
   revalidatePath("/reviews");
 }
 
-export async function calibrateReview(formData: FormData) {
+export async function completeReview(formData: FormData) {
   const access = await requireAccess();
   assertHrAdmin(access);
   const id = String(formData.get("id") || "");
-  const review = await prisma.review.findUnique({
-    where: { id },
-    include: { goalRatings: true },
-  });
+  const review = await prisma.review.findUnique({ where: { id } });
   if (!review) notFound();
-  await ensureGoalRatings(id);
-  const ratingRows = await prisma.goalRating.findMany({ where: { reviewId: id }, select: { id: true } });
-  const allowedIds = new Set(ratingRows.map((r) => r.id));
+  if (!canTransitionReview(review.status, REVIEW_STATES.completed)) notFound();
+  const allowedIds = await allowedRatingIds(id);
   const scores = scoresFromForm(formData, "final", allowedIds);
   if (scores.size > 0) {
     await prisma.$transaction(
@@ -163,27 +172,17 @@ export async function calibrateReview(formData: FormData) {
     data: {
       finalRating: weighted,
       hrNotes: String(formData.get("hrNotes") || ""),
-      status: "CALIBRATED",
+      status: REVIEW_STATES.completed,
     },
     include: { employee: { include: { user: true } } },
   });
   await emailReviewEvent({
     toEmail: updated.employee.user.email,
     toName: fullName(updated.employee),
-    subject: "Your Helix appraisal has been calibrated",
-    body: "HR has locked your final rating. Open the packet to read comments and acknowledge.",
+    subject: "Your Helix appraisal is completed",
+    body: "HR admin has marked your review completed.",
     reviewId: id,
   });
   revalidatePath(`/reviews/${id}`);
   revalidatePath("/reports");
-}
-
-export async function acknowledgeReview(formData: FormData) {
-  const access = await requireAccess();
-  const id = String(formData.get("id") || "");
-  const review = await prisma.review.findUnique({ where: { id } });
-  if (!review || review.employeeId !== access.selfId) notFound();
-  if (review.status !== "CALIBRATED") return;
-  await prisma.review.update({ where: { id }, data: { status: "ACKNOWLEDGED" } });
-  revalidatePath(`/reviews/${id}`);
 }

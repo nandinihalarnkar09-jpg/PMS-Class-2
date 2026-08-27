@@ -62,6 +62,7 @@ CREATE TABLE "goals" (
     "success_criteria" TEXT NOT NULL DEFAULT '',
     "category" TEXT NOT NULL,
     "weight" INTEGER NOT NULL DEFAULT 25,
+    "status" TEXT NOT NULL DEFAULT 'draft',
 
     CONSTRAINT "goals_pkey" PRIMARY KEY ("id")
 );
@@ -72,7 +73,7 @@ CREATE TABLE "reviews" (
     "cycle_id" TEXT NOT NULL,
     "employee_id" TEXT NOT NULL,
     "reviewer_id" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'NOT_STARTED',
+    "status" TEXT NOT NULL DEFAULT 'not_started',
     "self_summary" TEXT NOT NULL DEFAULT '',
     "manager_summary" TEXT NOT NULL DEFAULT '',
     "hr_notes" TEXT NOT NULL DEFAULT '',

@@ -20,8 +20,8 @@ Roles live in Postgres as one of **`employee`**, **`manager`**, **`hr_admin`**. 
 | --- | --- |
 | `employees` | People, including `manager_id` (self-reference) |
 | `review_cycles` | Appraisal window |
-| `goals` | **Plan** — title, description, success criteria, weight |
-| `reviews` | **Outcome packet** — narrative, status, calibrated `final_rating` |
+| `goals` | **Plan** — title, success criteria, weight, status `draft → submitted → approved` (or `sent_back`) |
+| `reviews` | **Outcome packet** — status `not_started → self_appraisal_submitted → manager_reviewed → completed` |
 | `goal_ratings` | **Outcome per goal** — self / manager / final scores on a review |
 
 Never mix plan and outcome: progress bars do not live on `goals`.

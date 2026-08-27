@@ -82,6 +82,7 @@ model Goal {
   successCriteria  String       @default("") @map("success_criteria")
   category         String
   weight           Int          @default(25)
+  status           String       @default("draft")
   ratings          GoalRating[]
 
   @@index([employeeId, cycleId])
@@ -97,7 +98,7 @@ model Review {
   employee       Employee     @relation("Reviewee", fields: [employeeId], references: [id])
   reviewerId     String?      @map("reviewer_id")
   reviewer       Employee?    @relation("Reviewer", fields: [reviewerId], references: [id])
-  status         String       @default("NOT_STARTED")
+  status         String       @default("not_started")
   selfSummary    String       @default("") @map("self_summary")
   managerSummary String       @default("") @map("manager_summary")
   hrNotes        String       @default("") @map("hr_notes")

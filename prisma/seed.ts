@@ -194,7 +194,7 @@ async function main() {
   const goals = [];
   const reviews = [];
   const ratings = [];
-  const statuses = ["SELF_IN_PROGRESS", "SELF_SUBMITTED", "MANAGER_IN_PROGRESS", "MANAGER_SUBMITTED", "CALIBRATED"];
+  const statuses = ["not_started", "self_appraisal_submitted", "manager_reviewed", "completed"];
 
   for (let i = 0; i < planned.length; i++) {
     const p = planned[i];
@@ -204,6 +204,7 @@ async function main() {
       const proto = pick(GOAL_BANK, i + g);
       const goalId = randomUUID();
       employeeGoals.push(goalId);
+      const started = statuses[i % 4] !== "not_started";
       goals.push({
         id: goalId,
         employeeId: p.empId,
@@ -213,12 +214,16 @@ async function main() {
         successCriteria: proto.description,
         category: proto.category,
         weight: g === gCount - 1 ? 100 - 25 * (gCount - 1) : 25,
+        status: started ? "approved" : g === 0 ? "draft" : "submitted",
       });
     }
 
     const selfRating = clamp(2.4 + p.util / 40 + (p.first.length % 5) * 0.15, 1.5, 5);
     const managerRating = clamp(selfRating + ((p.last.length % 3) - 1) * 0.25, 1.5, 5);
-    const status = statuses[i % 5];
+    const status = statuses[i % 4];
+    const started = status !== "not_started";
+    const managerDone = status === "manager_reviewed" || status === "completed";
+    const completed = status === "completed";
     const reviewId = randomUUID();
     const mgr = p.managerKey ? byKey.get(p.managerKey) : undefined;
     reviews.push({
@@ -227,27 +232,24 @@ async function main() {
       employeeId: p.empId,
       reviewerId: mgr?.empId ?? null,
       status,
-      selfSummary:
-        status === "SELF_IN_PROGRESS"
-          ? ""
-          : `This cycle I focused on delivery quality and client communication. Utilization closed near ${p.util}%.`,
-      managerSummary: ["MANAGER_SUBMITTED", "CALIBRATED"].includes(status)
+      selfSummary: started
+        ? `This cycle I focused on delivery quality and client communication. Utilization closed near ${p.util}%.`
+        : "",
+      managerSummary: managerDone
         ? `${p.first} is a solid contributor. Continue stretching on independent client conversations.`
         : "",
-      finalRating: status === "CALIBRATED" ? Number(managerRating.toFixed(1)) : null,
+      finalRating: completed ? Number(managerRating.toFixed(1)) : null,
     });
     for (let g = 0; g < employeeGoals.length; g++) {
       ratings.push({
         id: randomUUID(),
         reviewId,
         goalId: employeeGoals[g],
-        selfScore: status === "SELF_IN_PROGRESS" ? null : Number((selfRating + (g % 3) * 0.1).toFixed(1)),
-        selfComment: status === "SELF_IN_PROGRESS" ? "" : "Evidence against the success criteria in the plan.",
-        managerScore: ["MANAGER_SUBMITTED", "CALIBRATED"].includes(status)
-          ? Number((managerRating + (g % 2) * 0.1).toFixed(1))
-          : null,
-        managerComment: ["MANAGER_SUBMITTED", "CALIBRATED"].includes(status) ? "Manager view of the same plan item." : "",
-        finalScore: status === "CALIBRATED" ? Number(managerRating.toFixed(1)) : null,
+        selfScore: started ? Number((selfRating + (g % 3) * 0.1).toFixed(1)) : null,
+        selfComment: started ? "Evidence against the success criteria in the plan." : "",
+        managerScore: managerDone ? Number((managerRating + (g % 2) * 0.1).toFixed(1)) : null,
+        managerComment: managerDone ? "Manager view of the same plan item." : "",
+        finalScore: completed ? Number(managerRating.toFixed(1)) : null,
       });
     }
   }

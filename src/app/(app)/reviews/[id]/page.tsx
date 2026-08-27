@@ -7,7 +7,8 @@ import { ensureGoalRatings } from "@/lib/review-ratings";
 import { fullName } from "@/lib/format";
 import { GOAL_CATEGORY, RATING_BANDS, REVIEW_STATUS, ratingBand } from "@/lib/labels";
 import { displayOutcome, weightedScore } from "@/lib/outcomes";
-import { acknowledgeReview, calibrateReview, saveManagerReview, saveSelfReview } from "../actions";
+import { completeReview, saveManagerReview, saveSelfReview } from "../actions";
+import { GOAL_STATES, reviewCompleteOpen, reviewManagerOpen, reviewManagerVisible, reviewSelfOpen } from "@/lib/workflow";
 
 export default async function ReviewDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const access = await requireAccess();
@@ -30,10 +31,12 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
   const isSubject = review.employeeId === access.selfId;
   const canManagerWrite = canWriteManagerReview(access.role, access.selfId, review, access.visible);
   const hr = canCalibrate(access.role);
-
+  const selfOpen = isSubject && reviewSelfOpen(review.status);
+  const managerOpen = canManagerWrite && reviewManagerOpen(review.status);
+  const completeOpen = hr && reviewCompleteOpen(review.status);
+  const unapproved = review.goalRatings.some((row) => row.goal.status !== GOAL_STATES.approved);
   const outcome = displayOutcome(review.goalRatings, review.finalRating);
   const band = ratingBand(outcome);
-  const selfOpen = review.status === "NOT_STARTED" || review.status === "SELF_IN_PROGRESS" || !review.selfSummary;
 
   return (
     <div>
@@ -82,7 +85,7 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
                 Self {row.selfScore ?? "—"} · Manager {row.managerScore ?? "—"} · Final {row.finalScore ?? "—"}
               </p>
               {row.selfComment ? <p className="text-sm mt-1">{row.selfComment}</p> : null}
-              {row.managerComment && ["MANAGER_SUBMITTED", "CALIBRATED", "ACKNOWLEDGED"].includes(review.status) ? (
+              {row.managerComment && reviewManagerVisible(review.status) ? (
                 <p className="text-sm mt-1 text-[#3d4f56]">{row.managerComment}</p>
               ) : null}
             </li>
@@ -130,19 +133,18 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
                   Save draft
                 </button>
                 <button name="intent" value="submit" className="rounded-md bg-[#c24e1d] text-white px-4 py-2">
-                  Submit to manager
+                  Submit self-appraisal
                 </button>
               </div>
+              {unapproved ? (
+                <p className="text-sm text-[#c24e1d]">
+                  Submit stays in not_started until every goal is approved (draft → submitted → approved).
+                </p>
+              ) : null}
             </form>
           ) : (
             <div className="mt-3">
               <p className="whitespace-pre-wrap text-sm leading-relaxed">{review.selfSummary}</p>
-              {review.status === "CALIBRATED" ? (
-                <form action={acknowledgeReview} className="mt-4">
-                  <input type="hidden" name="id" value={review.id} />
-                  <button className="rounded-md bg-[#1f6f64] text-white px-4 py-2">Acknowledge outcome</button>
-                </form>
-              ) : null}
             </div>
           )}
         </section>
@@ -153,7 +155,7 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
         </section>
       )}
 
-      {canManagerWrite ? (
+      {managerOpen ? (
         <section className="mt-8 rounded-xl border border-[#d8cfc0] bg-white p-5">
           <h2 className="serif text-2xl">Manager write-up</h2>
           <form action={saveManagerReview} className="mt-4 space-y-4">
@@ -192,7 +194,7 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
                 Save draft
               </button>
               <button name="intent" value="submit" className="rounded-md bg-[#162329] text-white px-4 py-2">
-                Submit for calibration
+                Submit manager review
               </button>
             </div>
           </form>
@@ -201,17 +203,17 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
         <section className="mt-8 rounded-xl border border-[#d8cfc0] bg-white p-5">
           <h2 className="serif text-2xl">Manager write-up</h2>
           <p className="mt-3 text-sm whitespace-pre-wrap">
-            {["MANAGER_SUBMITTED", "CALIBRATED", "ACKNOWLEDGED"].includes(review.status)
+            {reviewManagerVisible(review.status)
               ? review.managerSummary
               : "Your manager has not released this write-up yet."}
           </p>
         </section>
       )}
 
-      {hr ? (
+      {completeOpen ? (
         <section className="mt-8 rounded-xl border border-[#d8cfc0] bg-white p-5">
-          <h2 className="serif text-2xl">HR calibration</h2>
-          <form action={calibrateReview} className="mt-4 space-y-4">
+          <h2 className="serif text-2xl">Mark completed</h2>
+          <form action={completeReview} className="mt-4 space-y-4">
             <input type="hidden" name="id" value={review.id} />
             {review.goalRatings.map((row) => (
               <label key={row.id} className="block text-sm">
@@ -245,7 +247,7 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
               placeholder="Calibration notes (visible to HR/admin)"
               className="w-full min-h-24 rounded-md border border-[#d8cfc0] px-3 py-2"
             />
-            <button className="rounded-md bg-[#c24e1d] text-white px-4 py-2">Lock calibrated rating</button>
+            <button className="rounded-md bg-[#c24e1d] text-white px-4 py-2">Mark completed</button>
           </form>
         </section>
       ) : null}

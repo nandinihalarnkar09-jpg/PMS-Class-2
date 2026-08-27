@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireAccess, canSeeReports } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { fullName, pct } from "@/lib/format";
-import { GOAL_CATEGORY, REVIEW_STATUS, ratingBand } from "@/lib/labels";
+import { GOAL_STATUS, REVIEW_STATUS, ratingBand } from "@/lib/labels";
 import { displayOutcome } from "@/lib/outcomes";
 import { ROLES } from "@/lib/access";
 
@@ -25,7 +25,7 @@ export default async function DashboardPage() {
       ? prisma.review.count({
           where: {
             employeeId: { in: access.visibleIds.filter((id) => id !== access.selfId) },
-            status: { in: ["SELF_SUBMITTED", "MANAGER_IN_PROGRESS"] },
+            status: { in: ["self_appraisal_submitted", "manager_reviewed"] },
           },
         })
       : Promise.resolve(0),
@@ -51,7 +51,7 @@ export default async function DashboardPage() {
           ? "You can open your own goals and review packet. Other people’s files return not found if you change the URL."
           : access.role === ROLES.manager
             ? "You see your own record plus anyone under you in manager_id. Calibration stays with HR admin."
-            : "HR admin can open any employee file and lock calibrated ratings."}{" "}
+            : "HR admin can open any employee file and mark reviews completed."}{" "}
         {cycle ? `${cycle.name} (${cycle.period}) is ${cycle.status.toLowerCase()}.` : ""}
       </p>
 
@@ -96,7 +96,7 @@ export default async function DashboardPage() {
               <li key={g.id} className="rounded-xl border border-[#d8cfc0] bg-white p-4">
                 <div className="flex justify-between gap-3">
                   <p className="font-medium">{g.title}</p>
-                  <span className="text-xs text-[#3d4f56]">{GOAL_CATEGORY[g.category]} · {g.weight}%</span>
+                  <span className="text-xs text-[#3d4f56]">{GOAL_STATUS[g.status] ?? g.status} · {g.weight}%</span>
                 </div>
                 <p className="mt-2 text-sm text-[#3d4f56]">{g.description}</p>
               </li>
