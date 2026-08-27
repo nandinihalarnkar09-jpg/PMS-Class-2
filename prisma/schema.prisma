@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id               String     @id @default(cuid())
+  clerkId          String?    @unique
+  email            String     @unique
+  role             String     @default("EMPLOYEE")
+  createdAt        DateTime   @default(now())
+  employee         Employee?
+  givenFeedback    Feedback[] @relation("FeedbackFrom")
+  receivedFeedback Feedback[] @relation("FeedbackTo")
+}
+
+model Department {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  code      String     @unique
+  employees Employee[]
+}
+
+model Employee {
+  id                String     @id @default(cuid())
+  employeeCode      String     @unique
+  userId            String     @unique
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName         String
+  lastName          String
+  title             String
+  location          String
+  joinDate          DateTime
+  band              String
+  utilizationTarget Int        @default(80)
+  utilizationActual Int        @default(0)
+  departmentId      String
+  department        Department @relation(fields: [departmentId], references: [id])
+  managerId         String?
+  manager           Employee?  @relation("Org", fields: [managerId], references: [id])
+  reports           Employee[] @relation("Org")
+  goals             Goal[]
+  reviews           Review[]   @relation("Reviewee")
+  managedReviews    Review[]   @relation("Reviewer")
+}
+
+model ReviewCycle {
+  id        String   @id @default(cuid())
+  name      String
+  period    String
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("DRAFT")
+  goals     Goal[]
+  reviews   Review[]
+}
+
+model Goal {
+  id          String      @id @default(cuid())
+  employeeId  String
+  employee    Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  cycleId     String
+  cycle       ReviewCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  category    String
+  weight      Int         @default(25)
+  progress    Int         @default(0)
+  status      String      @default("NOT_STARTED")
+}
+
+model Review {
+  id             String             @id @default(cuid())
+  cycleId        String
+  cycle          ReviewCycle        @relation(fields: [cycleId], references: [id])
+  employeeId     String
+  employee       Employee           @relation("Reviewee", fields: [employeeId], references: [id])
+  reviewerId     String?
+  reviewer       Employee?          @relation("Reviewer", fields: [reviewerId], references: [id])
+  status         String             @default("NOT_STARTED")
+  selfSummary    String             @default("")
+  managerSummary String             @default("")
+  hrNotes        String             @default("")
+  selfRating     Float?
+  managerRating  Float?
+  finalRating    Float?
+  competencies   CompetencyScore[]
+}
+
+model CompetencyScore {
+  id           String @id @default(cuid())
+  reviewId     String
+  review       Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  name         String
+  selfScore    Int?
+  managerScore Int?
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  fromId    String
+  from      User     @relation("FeedbackFrom", fields: [fromId], references: [id])
+  toId      String
+  to        User     @relation("FeedbackTo", fields: [toId], references: [id])
+  type      String
+  message   String
+  createdAt DateTime @default(now())
+}
