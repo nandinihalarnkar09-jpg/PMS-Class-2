@@ -2,37 +2,47 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession, canManagePeople, isLeader } from "@/lib/auth";
 import { RATING_BANDS, ratingBand } from "@/lib/labels";
+import { displayOutcome } from "@/lib/outcomes";
 
 export default async function ReportsPage() {
   const ctx = await requireSession();
   if (!ctx) redirect("/sign-in");
-  if (!isLeader(ctx.user.role)) {
+  const reportCount = ctx.user.employee?._count.reports ?? 0;
+  if (!isLeader(ctx.user.role, reportCount)) {
     return (
       <div>
         <h1 className="serif text-4xl">Reports</h1>
-        <p className="mt-3 text-[#3d4f56]">Org-level reports are available to managers, HR, and admin.</p>
+        <p className="mt-3 text-[#3d4f56]">Org-level reports are available to people with direct reports, HR, and admin.</p>
       </div>
     );
   }
 
   const reviews = await prisma.review.findMany({
     where: canManagePeople(ctx.user.role) ? {} : { reviewerId: ctx.user.employee?.id ?? "__none__" },
-    include: { employee: { include: { department: true } } },
+    include: {
+      employee: { include: { department: true } },
+      goalRatings: { include: { goal: true } },
+    },
   });
 
-  const withFinal = reviews.filter((r) => r.finalRating != null || r.managerRating != null);
+  const withOutcome = reviews
+    .map((r) => ({ r, outcome: displayOutcome(r.goalRatings, r.finalRating) }))
+    .filter((x) => x.outcome != null);
   const dist = RATING_BANDS.map((b) => ({
     ...b,
-    n: withFinal.filter((r) => ratingBand(r.finalRating ?? r.managerRating)?.label === b.label).length,
+    n: withOutcome.filter((x) => ratingBand(x.outcome)?.label === b.label).length,
   }));
 
-  const depts = new Map<string, { n: number; util: number; rated: number }>();
-  for (const r of reviews) {
+  const depts = new Map<string, { n: number; util: number; rated: number; ratedN: number }>();
+  for (const { r, outcome } of reviews.map((rev) => ({ r: rev, outcome: displayOutcome(rev.goalRatings, rev.finalRating) }))) {
     const name = r.employee.department.name;
-    const cur = depts.get(name) ?? { n: 0, util: 0, rated: 0 };
+    const cur = depts.get(name) ?? { n: 0, util: 0, rated: 0, ratedN: 0 };
     cur.n += 1;
     cur.util += r.employee.utilizationActual;
-    cur.rated += r.finalRating ?? r.managerRating ?? 0;
+    if (outcome != null) {
+      cur.rated += outcome;
+      cur.ratedN += 1;
+    }
     depts.set(name, cur);
   }
 
@@ -45,8 +55,8 @@ export default async function ReportsPage() {
     <div>
       <h1 className="serif text-4xl">Reports</h1>
       <p className="mt-2 text-[#3d4f56]">
-        Calibration view for a services org: rating spread, cycle throughput, and utilization beside outcomes so high
-        billability is not mistaken for high performance.
+        Distribution uses review outcomes (calibrated final_rating, else weighted goal_ratings). The goal plan is not
+        mixed into these numbers.
       </p>
 
       <section className="mt-8">
@@ -58,7 +68,7 @@ export default async function ReportsPage() {
               <div className="flex-1 h-3 rounded-full bg-[#ebe4d6]">
                 <div
                   className="h-3 rounded-full bg-[#162329]"
-                  style={{ width: `${withFinal.length ? (d.n / withFinal.length) * 100 : 0}%` }}
+                  style={{ width: `${withOutcome.length ? (d.n / withOutcome.length) * 100 : 0}%` }}
                 />
               </div>
               <span className="w-10 text-right text-sm">{d.n}</span>
@@ -88,7 +98,7 @@ export default async function ReportsPage() {
                 <th className="px-4 py-3">Department</th>
                 <th className="px-4 py-3">Packets</th>
                 <th className="px-4 py-3">Avg util.</th>
-                <th className="px-4 py-3">Avg rating</th>
+                <th className="px-4 py-3">Avg outcome</th>
               </tr>
             </thead>
             <tbody>
@@ -97,7 +107,7 @@ export default async function ReportsPage() {
                   <td className="px-4 py-3">{name}</td>
                   <td className="px-4 py-3">{d.n}</td>
                   <td className="px-4 py-3">{d.n ? Math.round(d.util / d.n) : 0}%</td>
-                  <td className="px-4 py-3">{d.n ? (d.rated / d.n).toFixed(1) : "—"}</td>
+                  <td className="px-4 py-3">{d.ratedN ? (d.rated / d.ratedN).toFixed(1) : "—"}</td>
                 </tr>
               ))}
             </tbody>

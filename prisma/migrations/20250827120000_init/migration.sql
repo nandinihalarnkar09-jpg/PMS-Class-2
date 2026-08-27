@@ -2,159 +2,177 @@
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateTable
-CREATE TABLE "User" (
+CREATE TABLE "users" (
     "id" TEXT NOT NULL,
-    "clerkId" TEXT,
+    "clerk_id" TEXT,
     "email" TEXT NOT NULL,
     "role" TEXT NOT NULL DEFAULT 'EMPLOYEE',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Department" (
+CREATE TABLE "departments" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL,
 
-    CONSTRAINT "Department_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "departments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Employee" (
+CREATE TABLE "employees" (
     "id" TEXT NOT NULL,
-    "employeeCode" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "firstName" TEXT NOT NULL,
-    "lastName" TEXT NOT NULL,
+    "employee_code" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "first_name" TEXT NOT NULL,
+    "last_name" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "location" TEXT NOT NULL,
-    "joinDate" TIMESTAMP(3) NOT NULL,
+    "join_date" TIMESTAMP(3) NOT NULL,
     "band" TEXT NOT NULL,
-    "utilizationTarget" INTEGER NOT NULL DEFAULT 80,
-    "utilizationActual" INTEGER NOT NULL DEFAULT 0,
-    "departmentId" TEXT NOT NULL,
-    "managerId" TEXT,
+    "utilization_target" INTEGER NOT NULL DEFAULT 80,
+    "utilization_actual" INTEGER NOT NULL DEFAULT 0,
+    "department_id" TEXT NOT NULL,
+    "manager_id" TEXT,
 
-    CONSTRAINT "Employee_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "employees_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "ReviewCycle" (
+CREATE TABLE "review_cycles" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "period" TEXT NOT NULL,
-    "startDate" TIMESTAMP(3) NOT NULL,
-    "endDate" TIMESTAMP(3) NOT NULL,
+    "start_date" TIMESTAMP(3) NOT NULL,
+    "end_date" TIMESTAMP(3) NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'DRAFT',
 
-    CONSTRAINT "ReviewCycle_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "review_cycles_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Goal" (
+CREATE TABLE "goals" (
     "id" TEXT NOT NULL,
-    "employeeId" TEXT NOT NULL,
-    "cycleId" TEXT NOT NULL,
+    "employee_id" TEXT NOT NULL,
+    "cycle_id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
+    "success_criteria" TEXT NOT NULL DEFAULT '',
     "category" TEXT NOT NULL,
     "weight" INTEGER NOT NULL DEFAULT 25,
-    "progress" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "goals_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "reviews" (
+    "id" TEXT NOT NULL,
+    "cycle_id" TEXT NOT NULL,
+    "employee_id" TEXT NOT NULL,
+    "reviewer_id" TEXT,
     "status" TEXT NOT NULL DEFAULT 'NOT_STARTED',
+    "self_summary" TEXT NOT NULL DEFAULT '',
+    "manager_summary" TEXT NOT NULL DEFAULT '',
+    "hr_notes" TEXT NOT NULL DEFAULT '',
+    "final_rating" DOUBLE PRECISION,
 
-    CONSTRAINT "Goal_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "reviews_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Review" (
+CREATE TABLE "goal_ratings" (
     "id" TEXT NOT NULL,
-    "cycleId" TEXT NOT NULL,
-    "employeeId" TEXT NOT NULL,
-    "reviewerId" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'NOT_STARTED',
-    "selfSummary" TEXT NOT NULL DEFAULT '',
-    "managerSummary" TEXT NOT NULL DEFAULT '',
-    "hrNotes" TEXT NOT NULL DEFAULT '',
-    "selfRating" DOUBLE PRECISION,
-    "managerRating" DOUBLE PRECISION,
-    "finalRating" DOUBLE PRECISION,
+    "review_id" TEXT NOT NULL,
+    "goal_id" TEXT NOT NULL,
+    "self_score" DOUBLE PRECISION,
+    "manager_score" DOUBLE PRECISION,
+    "final_score" DOUBLE PRECISION,
+    "self_comment" TEXT NOT NULL DEFAULT '',
+    "manager_comment" TEXT NOT NULL DEFAULT '',
 
-    CONSTRAINT "Review_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "goal_ratings_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "CompetencyScore" (
+CREATE TABLE "feedback" (
     "id" TEXT NOT NULL,
-    "reviewId" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "selfScore" INTEGER,
-    "managerScore" INTEGER,
-
-    CONSTRAINT "CompetencyScore_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Feedback" (
-    "id" TEXT NOT NULL,
-    "fromId" TEXT NOT NULL,
-    "toId" TEXT NOT NULL,
+    "from_id" TEXT NOT NULL,
+    "to_id" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "message" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "Feedback_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "feedback_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_clerkId_key" ON "User"("clerkId");
+CREATE UNIQUE INDEX "users_clerk_id_key" ON "users"("clerk_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Department_name_key" ON "Department"("name");
+CREATE UNIQUE INDEX "departments_name_key" ON "departments"("name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Department_code_key" ON "Department"("code");
+CREATE UNIQUE INDEX "departments_code_key" ON "departments"("code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Employee_employeeCode_key" ON "Employee"("employeeCode");
+CREATE UNIQUE INDEX "employees_employee_code_key" ON "employees"("employee_code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Employee_userId_key" ON "Employee"("userId");
+CREATE UNIQUE INDEX "employees_user_id_key" ON "employees"("user_id");
+
+-- CreateIndex
+CREATE INDEX "employees_manager_id_idx" ON "employees"("manager_id");
+
+-- CreateIndex
+CREATE INDEX "goals_employee_id_cycle_id_idx" ON "goals"("employee_id", "cycle_id");
+
+-- CreateIndex
+CREATE INDEX "reviews_reviewer_id_idx" ON "reviews"("reviewer_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "reviews_cycle_id_employee_id_key" ON "reviews"("cycle_id", "employee_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "goal_ratings_review_id_goal_id_key" ON "goal_ratings"("review_id", "goal_id");
 
 -- AddForeignKey
-ALTER TABLE "Employee" ADD CONSTRAINT "Employee_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "employees" ADD CONSTRAINT "employees_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Employee" ADD CONSTRAINT "Employee_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "Department"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "employees" ADD CONSTRAINT "employees_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Employee" ADD CONSTRAINT "Employee_managerId_fkey" FOREIGN KEY ("managerId") REFERENCES "Employee"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "employees" ADD CONSTRAINT "employees_manager_id_fkey" FOREIGN KEY ("manager_id") REFERENCES "employees"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Goal" ADD CONSTRAINT "Goal_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "goals" ADD CONSTRAINT "goals_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Goal" ADD CONSTRAINT "Goal_cycleId_fkey" FOREIGN KEY ("cycleId") REFERENCES "ReviewCycle"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "goals" ADD CONSTRAINT "goals_cycle_id_fkey" FOREIGN KEY ("cycle_id") REFERENCES "review_cycles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Review" ADD CONSTRAINT "Review_cycleId_fkey" FOREIGN KEY ("cycleId") REFERENCES "ReviewCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "reviews" ADD CONSTRAINT "reviews_cycle_id_fkey" FOREIGN KEY ("cycle_id") REFERENCES "review_cycles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Review" ADD CONSTRAINT "Review_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "reviews" ADD CONSTRAINT "reviews_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Review" ADD CONSTRAINT "Review_reviewerId_fkey" FOREIGN KEY ("reviewerId") REFERENCES "Employee"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "reviews" ADD CONSTRAINT "reviews_reviewer_id_fkey" FOREIGN KEY ("reviewer_id") REFERENCES "employees"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CompetencyScore" ADD CONSTRAINT "CompetencyScore_reviewId_fkey" FOREIGN KEY ("reviewId") REFERENCES "Review"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "goal_ratings" ADD CONSTRAINT "goal_ratings_review_id_fkey" FOREIGN KEY ("review_id") REFERENCES "reviews"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Feedback" ADD CONSTRAINT "Feedback_fromId_fkey" FOREIGN KEY ("fromId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "goal_ratings" ADD CONSTRAINT "goal_ratings_goal_id_fkey" FOREIGN KEY ("goal_id") REFERENCES "goals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Feedback" ADD CONSTRAINT "Feedback_toId_fkey" FOREIGN KEY ("toId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "feedback" ADD CONSTRAINT "feedback_from_id_fkey" FOREIGN KEY ("from_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "feedback" ADD CONSTRAINT "feedback_to_id_fkey" FOREIGN KEY ("to_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 

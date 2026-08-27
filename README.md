@@ -12,14 +12,25 @@ Performance management for a ~200-person services company (college project). Fic
 | Email | [Resend](https://resend.com) (feedback + review events) |
 | Hosting | [Vercel](https://vercel.com) |
 
-Roles live in Postgres (`ADMIN`, `HR`, `MANAGER`, `EMPLOYEE`). The first Clerk sign-in with a seeded work email attaches `clerkId` to that directory row (webhook + lazy sync in `src/lib/auth.ts`).
+Roles live in Postgres for app access (`ADMIN`, `HR`, `EMPLOYEE`). Org hierarchy is **not** a managers table: `employees.manager_id` points at another employee. Anyone with reports is a manager.
+
+## Domain model
+
+| Table | Holds |
+| --- | --- |
+| `employees` | People, including `manager_id` (self-reference) |
+| `review_cycles` | Appraisal window |
+| `goals` | **Plan** — title, description, success criteria, weight |
+| `reviews` | **Outcome packet** — narrative, status, calibrated `final_rating` |
+| `goal_ratings` | **Outcome per goal** — self / manager / final scores on a review |
+
+Never mix plan and outcome: progress bars do not live on `goals`.
 
 ## Features
 
 - People directory (~200 colleagues) with manager chain and utilization
-- Weighted goals for FY 2025–26
-- Review packet: self → manager → HR calibration → acknowledge
-- Competencies and 1–5 rating bands
+- Weighted **goal plans** for FY 2025–26
+- Review packet with **goal_ratings** (self → manager → HR calibration → acknowledge)
 - Praise / coaching / peer feedback
 - Reports: rating spread, cycle throughput, department snapshot
 

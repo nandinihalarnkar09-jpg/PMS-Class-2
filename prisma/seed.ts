@@ -15,13 +15,6 @@ const LAST = [
 ];
 const LOCATIONS = ["Bengaluru", "Pune", "Hyderabad", "Mumbai", "Chennai", "Gurugram"];
 const BANDS = ["A1", "A2", "B1", "B2", "C1", "C2", "D1"];
-const COMPETENCIES = [
-  "Client stewardship",
-  "Delivery excellence",
-  "Problem solving",
-  "Collaboration",
-  "Ownership",
-];
 
 const DEPARTMENTS: { name: string; code: string; titles: string[]; size: number; util: number }[] = [
   { name: "Leadership", code: "LDR", titles: ["Chief Executive Officer", "Chief Operating Officer", "Chief People Officer"], size: 3, util: 40 },
@@ -53,14 +46,6 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function ratingLabel(n: number) {
-  if (n >= 4.5) return 5;
-  if (n >= 3.6) return 4;
-  if (n >= 2.6) return 3;
-  if (n >= 1.6) return 2;
-  return 1;
-}
-
 type Planned = {
   userId: string;
   empId: string;
@@ -78,7 +63,7 @@ type Planned = {
 
 async function main() {
   await prisma.feedback.deleteMany();
-  await prisma.competencyScore.deleteMany();
+  await prisma.goalRating.deleteMany();
   await prisma.review.deleteMany();
   await prisma.goal.deleteMany();
   await prisma.reviewCycle.deleteMany();
@@ -208,27 +193,26 @@ async function main() {
 
   const goals = [];
   const reviews = [];
-  const scores = [];
+  const ratings = [];
   const statuses = ["SELF_IN_PROGRESS", "SELF_SUBMITTED", "MANAGER_IN_PROGRESS", "MANAGER_SUBMITTED", "CALIBRATED"];
 
   for (let i = 0; i < planned.length; i++) {
     const p = planned[i];
     const gCount = 3 + (p.first.length % 2);
+    const employeeGoals: string[] = [];
     for (let g = 0; g < gCount; g++) {
       const proto = pick(GOAL_BANK, i + g);
-      const progress = (p.util + g * 17) % 101;
-      const status =
-        progress >= 100 ? "COMPLETED" : progress >= 70 ? "ON_TRACK" : progress >= 40 ? "AT_RISK" : "NOT_STARTED";
+      const goalId = randomUUID();
+      employeeGoals.push(goalId);
       goals.push({
-        id: randomUUID(),
+        id: goalId,
         employeeId: p.empId,
         cycleId: cycle.id,
         title: proto.title,
         description: proto.description,
+        successCriteria: proto.description,
         category: proto.category,
         weight: g === gCount - 1 ? 100 - 25 * (gCount - 1) : 25,
-        progress,
-        status,
       });
     }
 
@@ -250,26 +234,27 @@ async function main() {
       managerSummary: ["MANAGER_SUBMITTED", "CALIBRATED"].includes(status)
         ? `${p.first} is a solid contributor. Continue stretching on independent client conversations.`
         : "",
-      selfRating: status === "SELF_IN_PROGRESS" ? null : Number(selfRating.toFixed(1)),
-      managerRating: ["MANAGER_SUBMITTED", "CALIBRATED"].includes(status) ? Number(managerRating.toFixed(1)) : null,
       finalRating: status === "CALIBRATED" ? Number(managerRating.toFixed(1)) : null,
     });
-    for (const name of COMPETENCIES) {
-      scores.push({
+    for (let g = 0; g < employeeGoals.length; g++) {
+      ratings.push({
         id: randomUUID(),
         reviewId,
-        name,
-        selfScore: status === "SELF_IN_PROGRESS" ? null : ratingLabel(selfRating + (name.length % 3) * 0.1),
+        goalId: employeeGoals[g],
+        selfScore: status === "SELF_IN_PROGRESS" ? null : Number((selfRating + (g % 3) * 0.1).toFixed(1)),
+        selfComment: status === "SELF_IN_PROGRESS" ? "" : "Evidence against the success criteria in the plan.",
         managerScore: ["MANAGER_SUBMITTED", "CALIBRATED"].includes(status)
-          ? ratingLabel(managerRating + (name.length % 2) * 0.1)
+          ? Number((managerRating + (g % 2) * 0.1).toFixed(1))
           : null,
+        managerComment: ["MANAGER_SUBMITTED", "CALIBRATED"].includes(status) ? "Manager view of the same plan item." : "",
+        finalScore: status === "CALIBRATED" ? Number(managerRating.toFixed(1)) : null,
       });
     }
   }
 
   await prisma.goal.createMany({ data: goals });
   await prisma.review.createMany({ data: reviews });
-  await prisma.competencyScore.createMany({ data: scores });
+  await prisma.goalRating.createMany({ data: ratings });
 
   const diya = byKey.get("employee")!;
   const rohan = byKey.get("manager")!;

@@ -5,14 +5,6 @@ export const ROLE_LABEL: Record<string, string> = {
   EMPLOYEE: "Employee",
 };
 
-export const GOAL_STATUS: Record<string, string> = {
-  NOT_STARTED: "Not started",
-  ON_TRACK: "On track",
-  AT_RISK: "At risk",
-  COMPLETED: "Completed",
-  CANCELLED: "Cancelled",
-};
-
 export const REVIEW_STATUS: Record<string, string> = {
   NOT_STARTED: "Not started",
   SELF_IN_PROGRESS: "Self-review",

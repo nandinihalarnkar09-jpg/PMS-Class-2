@@ -1,38 +1,45 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireSession, canManagePeople } from "@/lib/auth";
+import { requireSession, canManagePeople, isLineManager } from "@/lib/auth";
 import { REVIEW_STATUS, ratingBand } from "@/lib/labels";
 import { fullName } from "@/lib/format";
+import { displayOutcome, weightedScore } from "@/lib/outcomes";
+
+const ratingInclude = { goalRatings: { include: { goal: true } } } as const;
 
 export default async function ReviewsPage() {
   const ctx = await requireSession();
   if (!ctx) redirect("/sign-in");
   const emp = ctx.user.employee;
+  const reportCount = emp?._count.reports ?? 0;
 
   const mine = emp
     ? await prisma.review.findMany({
         where: { employeeId: emp.id },
-        include: { cycle: true, reviewer: true },
+        include: { cycle: true, reviewer: true, ...ratingInclude },
       })
     : [];
 
   const team = emp
     ? await prisma.review.findMany({
         where: canManagePeople(ctx.user.role) ? {} : { reviewerId: emp.id },
-        include: { cycle: true, employee: true, reviewer: true },
+        include: { cycle: true, employee: true, reviewer: true, ...ratingInclude },
         orderBy: { status: "asc" },
         take: canManagePeople(ctx.user.role) ? 40 : 80,
       })
     : [];
 
-  const visibleTeam = canManagePeople(ctx.user.role) ? team : team.filter((r) => r.employeeId !== emp?.id);
+  const visibleTeam = canManagePeople(ctx.user.role) || isLineManager(reportCount)
+    ? team.filter((r) => r.employeeId !== emp?.id)
+    : [];
 
   return (
     <div>
       <h1 className="serif text-4xl">Reviews</h1>
       <p className="mt-2 text-[#3d4f56]">
-        Self-review, manager write-up, then HR calibration. Ratings use a 1–5 scale that maps to Outstanding through Unsatisfactory.
+        Outcomes live here: a narrative packet plus one goal_rating row per planned goal. The plan itself stays on
+        Goals.
       </p>
 
       <h2 className="serif text-2xl mt-10">My packet</h2>
@@ -46,7 +53,9 @@ export default async function ReviewsPage() {
               <p className="text-sm text-[#3d4f56] mt-1">
                 {REVIEW_STATUS[r.status]}
                 {r.reviewer ? ` · Reviewer ${fullName(r.reviewer)}` : ""}
-                {ratingBand(r.finalRating)?.label ? ` · ${ratingBand(r.finalRating)?.label}` : ""}
+                {ratingBand(displayOutcome(r.goalRatings, r.finalRating))?.label
+                  ? ` · ${ratingBand(displayOutcome(r.goalRatings, r.finalRating))?.label}`
+                  : ""}
               </p>
             </Link>
           </li>
@@ -62,8 +71,8 @@ export default async function ReviewsPage() {
                 <tr>
                   <th className="px-4 py-3">Employee</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Self</th>
-                  <th className="px-4 py-3">Manager</th>
+                  <th className="px-4 py-3">Self (weighted)</th>
+                  <th className="px-4 py-3">Manager (weighted)</th>
                   <th className="px-4 py-3">Final</th>
                 </tr>
               </thead>
@@ -76,8 +85,8 @@ export default async function ReviewsPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3">{REVIEW_STATUS[r.status]}</td>
-                    <td className="px-4 py-3">{r.selfRating ?? "—"}</td>
-                    <td className="px-4 py-3">{r.managerRating ?? "—"}</td>
+                    <td className="px-4 py-3">{weightedScore(r.goalRatings, "selfScore") ?? "—"}</td>
+                    <td className="px-4 py-3">{weightedScore(r.goalRatings, "managerScore") ?? "—"}</td>
                     <td className="px-4 py-3">{r.finalRating ?? "—"}</td>
                   </tr>
                 ))}

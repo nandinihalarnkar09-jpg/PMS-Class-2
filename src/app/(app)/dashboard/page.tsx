@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireSession, isLineManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { fullName, pct } from "@/lib/format";
-import { GOAL_STATUS, REVIEW_STATUS, ratingBand } from "@/lib/labels";
+import { GOAL_CATEGORY, REVIEW_STATUS, ratingBand } from "@/lib/labels";
+import { displayOutcome } from "@/lib/outcomes";
 
 export default async function DashboardPage() {
   const ctx = await requireSession();
   if (!ctx) redirect("/sign-in");
   const { user } = ctx;
   const emp = user.employee;
+  const reportCount = emp?._count.reports ?? 0;
 
   const [headcount, cycle, myGoals, myReview, pendingTeam, recentFeedback, deptCount] = await Promise.all([
     prisma.employee.count(),
@@ -17,8 +19,13 @@ export default async function DashboardPage() {
     emp
       ? prisma.goal.findMany({ where: { employeeId: emp.id }, orderBy: { category: "asc" } })
       : Promise.resolve([]),
-    emp ? prisma.review.findFirst({ where: { employeeId: emp.id }, include: { cycle: true } }) : Promise.resolve(null),
-    emp && user.role === "MANAGER"
+    emp
+      ? prisma.review.findFirst({
+          where: { employeeId: emp.id },
+          include: { cycle: true, goalRatings: { include: { goal: true } } },
+        })
+      : Promise.resolve(null),
+    emp && isLineManager(reportCount)
       ? prisma.review.count({
           where: { reviewerId: emp.id, status: { in: ["SELF_SUBMITTED", "MANAGER_IN_PROGRESS"] } },
         })
@@ -32,31 +39,29 @@ export default async function DashboardPage() {
     prisma.department.count(),
   ]);
 
-  const goalAvg =
-    myGoals.length === 0 ? 0 : Math.round(myGoals.reduce((s, g) => s + g.progress, 0) / myGoals.length);
+  const outcome = myReview ? displayOutcome(myReview.goalRatings, myReview.finalRating) : null;
 
   return (
     <div>
       <p className="text-xs tracking-[0.22em] uppercase text-[#3d4f56]">Helix Consulting · {headcount} people</p>
       <h1 className="serif text-4xl mt-2">Good to have you, {emp?.firstName ?? "there"}.</h1>
       <p className="mt-2 text-[#3d4f56] max-w-2xl">
-        {cycle ? `${cycle.name} (${cycle.period}) is ${cycle.status.toLowerCase()}.` : "No active cycle."} This
-        workspace tracks goals, reviews, and feedback the way a services firm staffs work — utilization next to
-        outcomes, not instead of them.
+        {cycle ? `${cycle.name} (${cycle.period}) is ${cycle.status.toLowerCase()}.` : "No active cycle."} Goals are the
+        plan. Reviews and goal ratings are the outcome. A manager is an employee with reports through manager_id.
       </p>
 
       <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat k="Company" v={String(headcount)} s={`${deptCount} departments`} />
         <Stat k="My utilization" v={emp ? pct(emp.utilizationActual) : "—"} s={`Target ${emp?.utilizationTarget ?? "—"}%`} />
-        <Stat k="Goal progress" v={pct(goalAvg)} s={`${myGoals.length} goals this cycle`} />
+        <Stat k="Plan" v={String(myGoals.length)} s="goals this cycle (not scores)" />
         <Stat
           k="My review"
           v={myReview ? REVIEW_STATUS[myReview.status] : "—"}
-          s={ratingBand(myReview?.finalRating ?? myReview?.managerRating ?? myReview?.selfRating)?.label ?? "No rating yet"}
+          s={ratingBand(outcome)?.label ?? "No outcome yet"}
         />
       </div>
 
-      {user.role === "MANAGER" ? (
+      {isLineManager(reportCount) ? (
         <div className="mt-6 rounded-xl border border-[#d8cfc0] bg-white px-5 py-4 flex items-center justify-between gap-4">
           <div>
             <p className="font-medium">Team queue</p>
@@ -71,7 +76,7 @@ export default async function DashboardPage() {
       <div className="mt-10 grid lg:grid-cols-2 gap-8">
         <section>
           <div className="flex items-baseline justify-between">
-            <h2 className="serif text-2xl">Goals</h2>
+            <h2 className="serif text-2xl">Goal plan</h2>
             <Link href="/goals" className="text-sm text-[#1f6f64]">
               View all
             </Link>
@@ -82,12 +87,9 @@ export default async function DashboardPage() {
               <li key={g.id} className="rounded-xl border border-[#d8cfc0] bg-white p-4">
                 <div className="flex justify-between gap-3">
                   <p className="font-medium">{g.title}</p>
-                  <span className="text-xs text-[#3d4f56]">{GOAL_STATUS[g.status]}</span>
+                  <span className="text-xs text-[#3d4f56]">{GOAL_CATEGORY[g.category]} · {g.weight}%</span>
                 </div>
-                <div className="mt-3 h-1.5 rounded-full bg-[#ebe4d6]">
-                  <div className="h-1.5 rounded-full bg-[#1f6f64]" style={{ width: `${g.progress}%` }} />
-                </div>
-                <p className="mt-2 text-xs text-[#3d4f56]">{g.progress}% · weight {g.weight}%</p>
+                <p className="mt-2 text-sm text-[#3d4f56]">{g.description}</p>
               </li>
             ))}
           </ul>

@@ -10,13 +10,15 @@ datasource db {
 
 model User {
   id               String     @id @default(cuid())
-  clerkId          String?    @unique
+  clerkId          String?    @unique @map("clerk_id")
   email            String     @unique
   role             String     @default("EMPLOYEE")
-  createdAt        DateTime   @default(now())
+  createdAt        DateTime   @default(now()) @map("created_at")
   employee         Employee?
   givenFeedback    Feedback[] @relation("FeedbackFrom")
   receivedFeedback Feedback[] @relation("FeedbackTo")
+
+  @@map("users")
 }
 
 model Department {
@@ -24,90 +26,114 @@ model Department {
   name      String     @unique
   code      String     @unique
   employees Employee[]
+
+  @@map("departments")
 }
 
+/// A manager is an employee who has reports via manager_id — not a separate table.
 model Employee {
   id                String     @id @default(cuid())
-  employeeCode      String     @unique
-  userId            String     @unique
+  employeeCode      String     @unique @map("employee_code")
+  userId            String     @unique @map("user_id")
   user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  firstName         String
-  lastName          String
+  firstName         String     @map("first_name")
+  lastName          String     @map("last_name")
   title             String
   location          String
-  joinDate          DateTime
+  joinDate          DateTime   @map("join_date")
   band              String
-  utilizationTarget Int        @default(80)
-  utilizationActual Int        @default(0)
-  departmentId      String
+  utilizationTarget Int        @default(80) @map("utilization_target")
+  utilizationActual Int        @default(0) @map("utilization_actual")
+  departmentId      String     @map("department_id")
   department        Department @relation(fields: [departmentId], references: [id])
-  managerId         String?
+  managerId         String?    @map("manager_id")
   manager           Employee?  @relation("Org", fields: [managerId], references: [id])
   reports           Employee[] @relation("Org")
   goals             Goal[]
   reviews           Review[]   @relation("Reviewee")
   managedReviews    Review[]   @relation("Reviewer")
+
+  @@index([managerId])
+  @@map("employees")
 }
 
 model ReviewCycle {
   id        String   @id @default(cuid())
   name      String
   period    String
-  startDate DateTime
-  endDate   DateTime
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
   status    String   @default("DRAFT")
   goals     Goal[]
   reviews   Review[]
+
+  @@map("review_cycles")
 }
 
+/// Plan only. Outcomes live on reviews / goal_ratings.
 model Goal {
-  id          String      @id @default(cuid())
-  employeeId  String
-  employee    Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  cycleId     String
-  cycle       ReviewCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  title       String
-  description String
-  category    String
-  weight      Int         @default(25)
-  progress    Int         @default(0)
-  status      String      @default("NOT_STARTED")
+  id               String       @id @default(cuid())
+  employeeId       String       @map("employee_id")
+  employee         Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  cycleId          String       @map("cycle_id")
+  cycle            ReviewCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  title            String
+  description      String
+  successCriteria  String       @default("") @map("success_criteria")
+  category         String
+  weight           Int          @default(25)
+  ratings          GoalRating[]
+
+  @@index([employeeId, cycleId])
+  @@map("goals")
 }
 
+/// Packet-level outcome (narrative + calibration). Per-goal scores are goal_ratings.
 model Review {
-  id             String             @id @default(cuid())
-  cycleId        String
-  cycle          ReviewCycle        @relation(fields: [cycleId], references: [id])
-  employeeId     String
-  employee       Employee           @relation("Reviewee", fields: [employeeId], references: [id])
-  reviewerId     String?
-  reviewer       Employee?          @relation("Reviewer", fields: [reviewerId], references: [id])
-  status         String             @default("NOT_STARTED")
-  selfSummary    String             @default("")
-  managerSummary String             @default("")
-  hrNotes        String             @default("")
-  selfRating     Float?
-  managerRating  Float?
-  finalRating    Float?
-  competencies   CompetencyScore[]
+  id             String       @id @default(cuid())
+  cycleId        String       @map("cycle_id")
+  cycle          ReviewCycle  @relation(fields: [cycleId], references: [id])
+  employeeId     String       @map("employee_id")
+  employee       Employee     @relation("Reviewee", fields: [employeeId], references: [id])
+  reviewerId     String?      @map("reviewer_id")
+  reviewer       Employee?    @relation("Reviewer", fields: [reviewerId], references: [id])
+  status         String       @default("NOT_STARTED")
+  selfSummary    String       @default("") @map("self_summary")
+  managerSummary String       @default("") @map("manager_summary")
+  hrNotes        String       @default("") @map("hr_notes")
+  finalRating    Float?       @map("final_rating")
+  goalRatings    GoalRating[]
+
+  @@unique([cycleId, employeeId])
+  @@index([reviewerId])
+  @@map("reviews")
 }
 
-model CompetencyScore {
-  id           String @id @default(cuid())
-  reviewId     String
-  review       Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  name         String
-  selfScore    Int?
-  managerScore Int?
+model GoalRating {
+  id              String  @id @default(cuid())
+  reviewId        String  @map("review_id")
+  review          Review  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  goalId          String  @map("goal_id")
+  goal            Goal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  selfScore       Float?  @map("self_score")
+  managerScore    Float?  @map("manager_score")
+  finalScore      Float?  @map("final_score")
+  selfComment     String  @default("") @map("self_comment")
+  managerComment  String  @default("") @map("manager_comment")
+
+  @@unique([reviewId, goalId])
+  @@map("goal_ratings")
 }
 
 model Feedback {
   id        String   @id @default(cuid())
-  fromId    String
+  fromId    String   @map("from_id")
   from      User     @relation("FeedbackFrom", fields: [fromId], references: [id])
-  toId      String
+  toId      String   @map("to_id")
   to        User     @relation("FeedbackTo", fields: [toId], references: [id])
   type      String
   message   String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("feedback")
 }

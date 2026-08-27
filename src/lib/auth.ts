@@ -10,7 +10,13 @@ export type SessionUser = {
 };
 
 const employeeInclude = {
-  employee: { include: { department: true, manager: true } },
+  employee: {
+    include: {
+      department: true,
+      manager: true,
+      _count: { select: { reports: true } },
+    },
+  },
 } as const;
 
 export async function requireSession() {
@@ -69,6 +75,10 @@ export function canManagePeople(role: string) {
   return role === "ADMIN" || role === "HR";
 }
 
-export function isLeader(role: string) {
-  return role === "ADMIN" || role === "HR" || role === "MANAGER";
+export function isLeader(role: string, reportCount = 0) {
+  return role === "ADMIN" || role === "HR" || reportCount > 0;
+}
+
+export function isLineManager(reportCount: number) {
+  return reportCount > 0;
 }
