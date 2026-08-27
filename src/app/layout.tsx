@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Fraunces, Outfit } from "next/font/google";
+import { isClerkConfigured } from "@/lib/clerk-config";
 import "./globals.css";
 
 const sans = Outfit({
@@ -21,6 +22,16 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const html = (
+    <html lang="en">
+      <body className={`${sans.variable} ${serif.variable} antialiased`}>{children}</body>
+    </html>
+  );
+
+  if (!isClerkConfigured()) {
+    return html;
+  }
+
   return (
     <ClerkProvider
       afterSignOutUrl="/"
@@ -34,9 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         },
       }}
     >
-      <html lang="en">
-        <body className={`${sans.variable} ${serif.variable} antialiased`}>{children}</body>
-      </html>
+      {html}
     </ClerkProvider>
   );
 }
