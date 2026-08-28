@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase";
+import { requireEmployee } from "@/lib/current-employee";
 
 export type NewEmployeeInput = {
   full_name: string;
@@ -14,6 +15,10 @@ export type NewEmployeeInput = {
 };
 
 export async function createEmployee(input: NewEmployeeInput) {
+  const actor = await requireEmployee();
+  if (actor.role !== "hr_admin") {
+    return { ok: false as const, error: "Only HR admin can add employees." };
+  }
   const full_name = input.full_name.trim();
   const email = input.email.trim();
   if (!full_name || !email) {

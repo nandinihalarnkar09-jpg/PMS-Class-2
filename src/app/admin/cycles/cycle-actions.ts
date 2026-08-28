@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase";
+import { requireEmployee } from "@/lib/current-employee";
 
 export type CycleStatus = "draft" | "open" | "closed";
 
@@ -14,17 +15,12 @@ export type ReviewCycleRow = {
   created_by: string;
 };
 
-async function createdByEmployeeId() {
-  const admin = await supabaseServer()
-    .from("employees")
-    .select("id")
-    .eq("role", "hr_admin")
-    .limit(1)
-    .maybeSingle();
-  if (admin.data?.id) return admin.data.id;
-
-  const anyone = await supabaseServer().from("employees").select("id").limit(1).maybeSingle();
-  return anyone.data?.id ?? null;
+async function requireHrAdmin() {
+  const employee = await requireEmployee();
+  if (employee.role !== "hr_admin") {
+    return { ok: false as const, error: "Only HR admin can manage cycles.", employee: null };
+  }
+  return { ok: true as const, employee };
 }
 
 export async function createReviewCycle(input: {
@@ -32,6 +28,10 @@ export async function createReviewCycle(input: {
   start_date: string;
   end_date: string;
 }) {
+  const gate = await requireHrAdmin();
+  if (!gate.ok || !gate.employee) {
+    return { ok: false as const, error: gate.error ?? "Only HR admin can manage cycles." };
+  }
   const name = input.name.trim();
   if (!name || !input.start_date || !input.end_date) {
     return { ok: false as const, error: "Name, start date, and end date are required." };
@@ -40,10 +40,7 @@ export async function createReviewCycle(input: {
     return { ok: false as const, error: "End date must be on or after the start date." };
   }
 
-  const created_by = await createdByEmployeeId();
-  if (!created_by) {
-    return { ok: false as const, error: "Add an employee first so the cycle has a creator." };
-  }
+  const created_by = gate.employee.id;
 
   const { error } = await supabaseServer().from("review_cycles").insert({
     name,
@@ -62,6 +59,10 @@ export async function createReviewCycle(input: {
 }
 
 export async function setCycleStatus(id: string, status: CycleStatus) {
+  const gate = await requireHrAdmin();
+  if (!gate.ok) {
+    return { ok: false as const, error: gate.error ?? "Only HR admin can manage cycles." };
+  }
   if (status === "open") {
     const { error: closeError } = await supabaseServer()
       .from("review_cycles")

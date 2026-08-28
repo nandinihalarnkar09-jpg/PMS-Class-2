@@ -1,5 +1,4 @@
 import { SignIn } from "@clerk/nextjs";
-import { isClerkConfigured } from "@/lib/clerk-config";
 
 export default function SignInPage() {
   return (
@@ -16,27 +15,12 @@ export default function SignInPage() {
         <div className="relative max-w-lg">
           <h1 className="serif text-5xl leading-[1.1] font-medium">Sign in to the appraisal workspace.</h1>
           <p className="mt-6 text-[#d8cfc0] text-lg">
-            Clerk handles identity. Your Helix role is applied from the people directory after the first login with a
-            seeded work email.
+            Use your work email. Helix matches that email to your employee row and applies your role.
           </p>
         </div>
-        <p className="relative text-sm text-[#9aada8]">Demo emails: employee / manager / hr / admin @helix.consulting</p>
       </section>
       <section className="flex items-center justify-center p-8">
-        {isClerkConfigured() ? (
-          <SignIn />
-        ) : (
-          <div className="max-w-md space-y-4 text-[#162329]">
-            <h2 className="serif text-2xl">Clerk keys are not set yet</h2>
-            <p className="text-sm leading-6 text-[#3d4f56]">
-              This project is linked to Clerk app <code className="text-xs">app_3IWJOUtTlOTuy1xfMODe1McNKQe</code>.
-              Sign-in widgets load after Clerk keys are available in the environment.
-            </p>
-            <a href="/" className="inline-block text-sm underline">
-              Back to home
-            </a>
-          </div>
-        )}
+        <SignIn />
       </section>
     </main>
   );
