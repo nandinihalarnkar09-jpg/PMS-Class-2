@@ -13,6 +13,11 @@ export default function Home() {
         <p className="mt-4 text-lg text-[#3d4f56] max-w-xl">
           Performance reviews and goals for a 200-person services company.
         </p>
+        <p className="mt-4 text-sm text-[#3d4f56] max-w-xl">
+          Sign in works at <span className="font-medium text-[#162329]">http://localhost:3000/sign-in</span> after you
+          run <code className="text-[#162329]">npm run dev</code> on your laptop. The Cursor preview URL cannot finish
+          Clerk login.
+        </p>
       </section>
 
       <section className="max-w-5xl mx-auto px-6 pb-20 grid gap-4 sm:grid-cols-3">
