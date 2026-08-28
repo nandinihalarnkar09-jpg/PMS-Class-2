@@ -12,14 +12,11 @@ export type EmployeeRow = {
   manager_id: string | null;
   role: EmployeeRole;
   is_active: boolean;
-  manager: { full_name: string } | { full_name: string }[] | null;
 };
 
-function managerName(row: EmployeeRow) {
-  const manager = row.manager;
-  if (!manager) return "—";
-  if (Array.isArray(manager)) return manager[0]?.full_name ?? "—";
-  return manager.full_name ?? "—";
+function managerName(row: EmployeeRow, namesById: Map<string, string>) {
+  if (!row.manager_id) return "—";
+  return namesById.get(row.manager_id) ?? "—";
 }
 
 function roleLabel(role: EmployeeRole) {
@@ -31,13 +28,12 @@ function roleLabel(role: EmployeeRole) {
 export default async function AdminEmployeesPage() {
   const { data, error } = await supabaseServer()
     .from("employees")
-    .select(
-      "id, full_name, designation, department, manager_id, role, is_active, manager:employees!manager_id(full_name)",
-    )
+    .select("id, full_name, designation, department, manager_id, role, is_active")
     .order("full_name", { ascending: true })
     .returns<EmployeeRow[]>();
 
   const rows = data ?? [];
+  const namesById = new Map(rows.map((row) => [row.id, row.full_name]));
 
   return (
     <main className="min-h-screen bg-[#f4efe6] px-6 py-10">
@@ -73,7 +69,7 @@ export default async function AdminEmployeesPage() {
                     <td className="px-4 py-3 font-medium">{row.full_name}</td>
                     <td className="px-4 py-3">{row.designation}</td>
                     <td className="px-4 py-3">{row.department}</td>
-                    <td className="px-4 py-3">{managerName(row)}</td>
+                    <td className="px-4 py-3">{managerName(row, namesById)}</td>
                     <td className="px-4 py-3">{roleLabel(row.role)}</td>
                     <td className="px-4 py-3">{row.is_active ? "Active" : "Inactive"}</td>
                   </tr>
