@@ -13,6 +13,13 @@ export default function Home() {
         <p className="mt-4 text-lg text-[#3d4f56] max-w-xl">
           Performance reviews and goals for a 200-person services company.
         </p>
+        <p className="mt-4 text-sm text-[#3d4f56]">
+          On your computer, run <code className="rounded bg-white px-1">npm run dev</code> and open{" "}
+          <a className="underline" href="http://localhost:3000">
+            http://localhost:3000
+          </a>
+          .
+        </p>
       </section>
 
       <section className="max-w-5xl mx-auto px-6 pb-20 grid gap-4 sm:grid-cols-3">
