@@ -1,90 +1,118 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { notFound } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { ROLES } from "@/lib/access";
-import { requireAccess, assertCanViewEmployee } from "@/lib/auth";
-import { GOAL_STATES, canTransitionGoal, goalPlanEditable } from "@/lib/workflow";
+import { supabaseServer } from "@/lib/supabase";
+import { requireEmployee } from "@/lib/current-employee";
 
-async function attachRatingIfReviewExists(goalId: string, employeeId: string, cycleId: string) {
-  const review = await prisma.review.findUnique({
-    where: { cycleId_employeeId: { cycleId, employeeId } },
-  });
-  if (!review) return;
-  await prisma.goalRating.upsert({
-    where: { reviewId_goalId: { reviewId: review.id, goalId } },
-    create: { reviewId: review.id, goalId },
-    update: {},
-  });
+export type GoalStatus = "draft" | "submitted" | "approved" | "sent_back";
+
+export type GoalRow = {
+  id: string;
+  employee_id: string;
+  cycle_id: string;
+  title: string;
+  description: string | null;
+  weightage: number;
+  target_date: string | null;
+  status: GoalStatus;
+};
+
+async function openCycle() {
+  const { data } = await supabaseServer()
+    .from("review_cycles")
+    .select("id, name")
+    .eq("status", "open")
+    .limit(1)
+    .maybeSingle();
+  return data;
 }
 
-export async function updateGoalPlan(formData: FormData) {
-  const access = await requireAccess();
-  const id = String(formData.get("id") || "");
-  const goal = await prisma.goal.findUnique({ where: { id } });
-  if (!goal) notFound();
-  if (goal.employeeId !== access.selfId) notFound();
-  if (!goalPlanEditable(goal.status)) notFound();
-  await prisma.goal.update({
-    where: { id },
-    data: {
-      title: String(formData.get("title") || goal.title).trim(),
-      description: String(formData.get("description") || goal.description).trim(),
-      successCriteria: String(formData.get("successCriteria") || "").trim(),
-      category: String(formData.get("category") || goal.category),
-      weight: Number(formData.get("weight") || goal.weight),
-    },
-  });
-  revalidatePath("/goals");
-  revalidatePath("/dashboard");
+async function ownGoal(id: string, employeeId: string) {
+  const { data } = await supabaseServer()
+    .from("goals")
+    .select("id, employee_id, cycle_id, title, description, weightage, target_date, status")
+    .eq("id", id)
+    .eq("employee_id", employeeId)
+    .maybeSingle();
+  return data as GoalRow | null;
 }
 
-export async function submitGoal(formData: FormData) {
-  const access = await requireAccess();
-  const id = String(formData.get("id") || "");
-  const goal = await prisma.goal.findUnique({ where: { id } });
-  if (!goal) notFound();
-  if (goal.employeeId !== access.selfId) notFound();
-  if (!canTransitionGoal(goal.status, GOAL_STATES.submitted)) notFound();
-  await prisma.goal.update({ where: { id }, data: { status: GOAL_STATES.submitted } });
-  revalidatePath("/goals");
-}
-
-export async function decideGoal(formData: FormData) {
-  const access = await requireAccess();
-  if (access.role === ROLES.employee) notFound();
-  const id = String(formData.get("id") || "");
-  const decision = String(formData.get("decision") || "");
-  const next = decision === "approved" ? GOAL_STATES.approved : decision === "sent_back" ? GOAL_STATES.sent_back : null;
-  if (!next) notFound();
-  const goal = await prisma.goal.findUnique({ where: { id } });
-  if (!goal) notFound();
-  assertCanViewEmployee(access, goal.employeeId);
-  if (goal.employeeId === access.selfId && access.role !== ROLES.hr_admin) notFound();
-  if (!canTransitionGoal(goal.status, next)) notFound();
-  await prisma.goal.update({ where: { id }, data: { status: next } });
-  revalidatePath("/goals");
+function weightTotal(rows: { weightage: number }[]) {
+  return Math.round(rows.reduce((sum, row) => sum + Number(row.weightage), 0) * 100) / 100;
 }
 
 export async function addGoal(formData: FormData) {
-  const access = await requireAccess();
-  const cycle = await prisma.reviewCycle.findFirst({ where: { status: "ACTIVE" } });
+  const me = await requireEmployee();
+  const cycle = await openCycle();
   if (!cycle) return;
+
   const title = String(formData.get("title") || "").trim();
   if (!title) return;
-  const goal = await prisma.goal.create({
-    data: {
-      employeeId: access.selfId,
-      cycleId: cycle.id,
-      title,
-      description: String(formData.get("description") || "").trim() || "Added during the live cycle.",
-      successCriteria: String(formData.get("successCriteria") || "").trim(),
-      category: String(formData.get("category") || "SELF"),
-      weight: Number(formData.get("weight") || 10),
-      status: GOAL_STATES.draft,
-    },
+
+  await supabaseServer().from("goals").insert({
+    employee_id: me.id,
+    cycle_id: cycle.id,
+    title,
+    description: String(formData.get("description") || "").trim() || null,
+    weightage: Number(formData.get("weightage") || 0),
+    target_date: String(formData.get("target_date") || "") || null,
+    status: "draft",
   });
-  await attachRatingIfReviewExists(goal.id, access.selfId, cycle.id);
+
+  revalidatePath("/goals");
+}
+
+export async function updateGoal(formData: FormData) {
+  const me = await requireEmployee();
+  const id = String(formData.get("id") || "");
+  const goal = await ownGoal(id, me.id);
+  if (!goal || goal.status !== "draft") return;
+
+  await supabaseServer()
+    .from("goals")
+    .update({
+      title: String(formData.get("title") || goal.title).trim(),
+      description: String(formData.get("description") || "").trim() || null,
+      weightage: Number(formData.get("weightage") || goal.weightage),
+      target_date: String(formData.get("target_date") || "") || null,
+    })
+    .eq("id", goal.id)
+    .eq("employee_id", me.id)
+    .eq("status", "draft");
+
+  revalidatePath("/goals");
+}
+
+export async function deleteGoal(formData: FormData) {
+  const me = await requireEmployee();
+  const id = String(formData.get("id") || "");
+  const goal = await ownGoal(id, me.id);
+  if (!goal || goal.status !== "draft") return;
+
+  await supabaseServer().from("goals").delete().eq("id", goal.id).eq("employee_id", me.id).eq("status", "draft");
+  revalidatePath("/goals");
+}
+
+export async function submitAllGoals() {
+  const me = await requireEmployee();
+  const cycle = await openCycle();
+  if (!cycle) return;
+
+  const { data } = await supabaseServer()
+    .from("goals")
+    .select("id, weightage, status")
+    .eq("employee_id", me.id)
+    .eq("cycle_id", cycle.id);
+
+  const rows = data ?? [];
+  if (weightTotal(rows) !== 100) return;
+
+  await supabaseServer()
+    .from("goals")
+    .update({ status: "submitted" })
+    .eq("employee_id", me.id)
+    .eq("cycle_id", cycle.id)
+    .eq("status", "draft");
+
   revalidatePath("/goals");
 }

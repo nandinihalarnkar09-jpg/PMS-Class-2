@@ -1,150 +1,160 @@
-import { prisma } from "@/lib/db";
-import { requireAccess, goalScope } from "@/lib/auth";
-import { GOAL_CATEGORY, GOAL_STATUS } from "@/lib/labels";
-import { addGoal, decideGoal, submitGoal, updateGoalPlan } from "./actions";
-import { ROLES } from "@/lib/access";
-import { GOAL_STATES, goalPlanEditable } from "@/lib/workflow";
+import { supabaseServer } from "@/lib/supabase";
+import { requireEmployee } from "@/lib/current-employee";
+import { addGoal, deleteGoal, submitAllGoals, updateGoal, type GoalRow } from "./actions";
+
+export const dynamic = "force-dynamic";
+
+function weightTotal(rows: GoalRow[]) {
+  return Math.round(rows.reduce((sum, row) => sum + Number(row.weightage), 0) * 100) / 100;
+}
 
 export default async function GoalsPage() {
-  const access = await requireAccess();
+  const me = await requireEmployee();
+  const { data: cycle } = await supabaseServer()
+    .from("review_cycles")
+    .select("id, name, start_date, end_date")
+    .eq("status", "open")
+    .limit(1)
+    .maybeSingle();
 
-  const own = await prisma.goal.findMany({
-    where: { employeeId: access.selfId },
-    include: { cycle: true },
-    orderBy: { category: "asc" },
-  });
+  if (!cycle) {
+    return (
+      <div>
+        <h1 className="serif text-4xl">My Goals</h1>
+        <div className="mt-8 rounded-xl border border-dashed border-[#d8cfc0] bg-white px-6 py-16 text-center">
+          <p className="font-medium text-[#162329]">No open review cycle</p>
+          <p className="mt-2 text-sm text-[#3d4f56]">
+            HR needs to open a cycle before you can add goals. Check back when a cycle is open.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  const team =
-    access.role === ROLES.employee
-      ? []
-      : await prisma.goal.findMany({
-          where: { AND: [goalScope(access), { employeeId: { not: access.selfId } }] },
-          include: { employee: true, cycle: true },
-          take: 40,
-          orderBy: { title: "asc" },
-        });
+  const { data } = await supabaseServer()
+    .from("goals")
+    .select("id, employee_id, cycle_id, title, description, weightage, target_date, status")
+    .eq("employee_id", me.id)
+    .eq("cycle_id", cycle.id)
+    .order("created_at", { ascending: true })
+    .returns<GoalRow[]>();
 
-  const pendingApproval = team.filter((g) => g.status === GOAL_STATES.submitted);
+  const goals = data ?? [];
+  const total = weightTotal(goals);
+  const totalOk = total === 100;
+  const field = "mt-1 w-full rounded-md border border-[#d8cfc0] bg-white px-3 py-2 text-sm";
 
   return (
     <div>
-      <h1 className="serif text-4xl">Goals</h1>
-      <p className="mt-2 text-[#3d4f56]">
-        Plan workflow: draft → submitted → approved, or sent back to draft-quality edits. Scores still live on the
-        review, not on the goal.
+      <h1 className="serif text-4xl">My Goals</h1>
+      <p className="mt-2 text-sm text-[#3d4f56]">
+        {cycle.name} · {cycle.start_date} → {cycle.end_date}
+      </p>
+      <p className={`mt-4 text-lg font-medium ${totalOk ? "text-[#162329]" : "text-red-700"}`}>
+        Weightage total: {total}%{totalOk ? "" : " — must equal 100% to submit"}
       </p>
 
-      <form action={addGoal} className="mt-8 rounded-xl border border-[#d8cfc0] bg-white p-4 grid md:grid-cols-2 gap-3">
-        <p className="md:col-span-2 font-medium">Add a draft goal</p>
-        <input name="title" required placeholder="Title" className="rounded-md border border-[#d8cfc0] px-3 py-2" />
-        <select name="category" className="rounded-md border border-[#d8cfc0] px-3 py-2">
-          {Object.entries(GOAL_CATEGORY).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
-        <textarea name="description" placeholder="What you will do" className="md:col-span-2 rounded-md border border-[#d8cfc0] px-3 py-2 min-h-20" />
-        <textarea name="successCriteria" placeholder="How we will know it is done" className="md:col-span-2 rounded-md border border-[#d8cfc0] px-3 py-2 min-h-16" />
-        <input name="weight" type="number" min={5} max={50} defaultValue={10} className="rounded-md border border-[#d8cfc0] px-3 py-2" />
-        <button className="rounded-md bg-[#1f6f64] text-white px-4 py-2">Save draft</button>
+      <form action={addGoal} className="mt-8 rounded-xl border border-[#d8cfc0] bg-white p-5">
+        <h2 className="font-medium">Add a goal</h2>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="text-sm text-[#3d4f56] sm:col-span-2">
+            Title
+            <input className={field} name="title" required />
+          </label>
+          <label className="text-sm text-[#3d4f56] sm:col-span-2">
+            Description
+            <textarea className={`${field} min-h-20`} name="description" />
+          </label>
+          <label className="text-sm text-[#3d4f56]">
+            Weightage
+            <input className={field} name="weightage" type="number" min={1} max={100} step="0.01" required />
+          </label>
+          <label className="text-sm text-[#3d4f56]">
+            Target date
+            <input className={field} name="target_date" type="date" />
+          </label>
+        </div>
+        <button type="submit" className="mt-4 rounded-md bg-[#162329] px-4 py-2 text-sm text-[#f4efe6]">
+          Add draft
+        </button>
       </form>
 
-      <ul className="mt-8 space-y-3">
-        {own.map((g) => {
-          const editable = goalPlanEditable(g.status);
-          return (
-            <li key={g.id} className="rounded-xl border border-[#d8cfc0] bg-white p-4">
-              <div className="flex flex-wrap justify-between gap-2">
-                <p className="text-xs uppercase tracking-wide text-[#c24e1d]">{GOAL_CATEGORY[g.category]}</p>
-                <p className="text-sm">{GOAL_STATUS[g.status] ?? g.status}</p>
-              </div>
-              {editable ? (
-                <form action={updateGoalPlan} className="mt-3 space-y-3">
-                  <input type="hidden" name="id" value={g.id} />
-                  <input name="title" defaultValue={g.title} className="w-full rounded-md border border-[#d8cfc0] px-3 py-2 font-medium" />
-                  <textarea name="description" defaultValue={g.description} className="w-full rounded-md border border-[#d8cfc0] px-3 py-2 min-h-16 text-sm" />
-                  <textarea name="successCriteria" defaultValue={g.successCriteria} className="w-full rounded-md border border-[#d8cfc0] px-3 py-2 min-h-14 text-sm" />
-                  <div className="flex flex-wrap items-end gap-2">
-                    <select name="category" defaultValue={g.category} className="rounded-md border border-[#d8cfc0] px-2 py-1 text-sm">
-                      {Object.entries(GOAL_CATEGORY).map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="text-sm">
-                      Weight
-                      <input name="weight" type="number" min={5} max={80} defaultValue={g.weight} className="ml-2 w-20 rounded-md border border-[#d8cfc0] px-2 py-1" />
+      <form action={submitAllGoals} className="mt-6">
+        <button
+          type="submit"
+          disabled={!totalOk}
+          className="rounded-md bg-[#1f6f64] px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Submit All Goals
+        </button>
+      </form>
+
+      {goals.length === 0 ? (
+        <div className="mt-8 rounded-xl border border-dashed border-[#d8cfc0] bg-white px-6 py-12 text-center">
+          <p className="font-medium">No goals yet</p>
+          <p className="mt-2 text-sm text-[#3d4f56]">Add draft goals until the weightage total is 100%.</p>
+        </div>
+      ) : (
+        <ul className="mt-8 space-y-3">
+          {goals.map((goal) => (
+            <li key={goal.id} className="rounded-xl border border-[#d8cfc0] bg-white p-4">
+              {goal.status === "draft" ? (
+                <form action={updateGoal} className="space-y-3">
+                  <input type="hidden" name="id" value={goal.id} />
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span className="uppercase tracking-wide text-[#c24e1d]">{goal.status}</span>
+                    <span>{goal.weightage}%</span>
+                  </div>
+                  <input className={field} name="title" defaultValue={goal.title} />
+                  <textarea className={`${field} min-h-16`} name="description" defaultValue={goal.description ?? ""} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm text-[#3d4f56]">
+                      Weightage
+                      <input
+                        className={field}
+                        name="weightage"
+                        type="number"
+                        min={1}
+                        max={100}
+                        step="0.01"
+                        defaultValue={goal.weightage}
+                      />
                     </label>
-                    <button className="text-sm text-[#c24e1d]">Save plan</button>
+                    <label className="text-sm text-[#3d4f56]">
+                      Target date
+                      <input className={field} name="target_date" type="date" defaultValue={goal.target_date ?? ""} />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="submit" className="rounded-md bg-[#162329] px-3 py-1.5 text-sm text-[#f4efe6]">
+                      Save
+                    </button>
                   </div>
                 </form>
               ) : (
-                <div className="mt-2">
-                  <p className="font-medium">{g.title}</p>
-                  <p className="text-sm text-[#3d4f56] mt-1">{g.description}</p>
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">{goal.title}</p>
+                    <p className="text-sm text-[#3d4f56]">
+                      {goal.status} · {goal.weightage}%
+                      {goal.target_date ? ` · ${goal.target_date}` : ""}
+                    </p>
+                  </div>
+                  {goal.description ? <p className="mt-2 text-sm text-[#3d4f56]">{goal.description}</p> : null}
                 </div>
               )}
-              {(g.status === GOAL_STATES.draft || g.status === GOAL_STATES.sent_back) ? (
-                <form action={submitGoal} className="mt-3">
-                  <input type="hidden" name="id" value={g.id} />
-                  <button className="rounded-md bg-[#162329] text-white px-3 py-1.5 text-sm">Submit for approval</button>
+              {goal.status === "draft" ? (
+                <form action={deleteGoal} className="mt-3">
+                  <input type="hidden" name="id" value={goal.id} />
+                  <button type="submit" className="text-sm text-red-800">
+                    Delete
+                  </button>
                 </form>
               ) : null}
             </li>
-          );
-        })}
-      </ul>
-
-      {pendingApproval.length > 0 ? (
-        <section className="mt-12">
-          <h2 className="serif text-2xl">Waiting on you</h2>
-          <ul className="mt-4 space-y-2">
-            {pendingApproval.map((g) => (
-              <li key={g.id} className="rounded-xl border border-[#d8cfc0] bg-white p-4">
-                <p className="font-medium">
-                  {g.employee.firstName} {g.employee.lastName} · {g.title}
-                </p>
-                <p className="text-sm text-[#3d4f56] mt-1">{g.description}</p>
-                <div className="mt-3 flex gap-2">
-                  <form action={decideGoal}>
-                    <input type="hidden" name="id" value={g.id} />
-                    <input type="hidden" name="decision" value="approved" />
-                    <button className="rounded-md bg-[#1f6f64] text-white px-3 py-1.5 text-sm">Approve</button>
-                  </form>
-                  <form action={decideGoal}>
-                    <input type="hidden" name="id" value={g.id} />
-                    <input type="hidden" name="decision" value="sent_back" />
-                    <button className="rounded-md border border-[#c24e1d] text-[#c24e1d] px-3 py-1.5 text-sm">Send back</button>
-                  </form>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {team.length > 0 ? (
-        <section className="mt-12">
-          <h2 className="serif text-2xl">{access.role === ROLES.hr_admin ? "Company plans" : "Team plans"}</h2>
-          <ul className="mt-4 divide-y divide-[#d8cfc0] rounded-xl border border-[#d8cfc0] bg-white">
-            {team.map((g) => (
-              <li key={g.id} className="px-4 py-3 flex justify-between gap-3 text-sm">
-                <span>
-                  <span className="font-medium">
-                    {g.employee.firstName} {g.employee.lastName}
-                  </span>
-                  <span className="text-[#3d4f56]"> · {g.title}</span>
-                </span>
-                <span>
-                  {GOAL_STATUS[g.status]} · {g.weight}%
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
