@@ -18,9 +18,13 @@ const clerk = clerkMiddleware(async (auth, req) => {
 export default function middleware(req: NextRequest, event: NextFetchEvent) {
   const path = req.nextUrl.pathname;
 
-  // Clerk's handshake query is too large for the Cursor preview proxy.
+  // Drop Clerk's handshake query: Cursor's proxy cannot route the huge URL.
   if (req.nextUrl.searchParams.has("__clerk_handshake")) {
-    return NextResponse.redirect(new URL("http://localhost:3000/sign-in"));
+    const clean = req.nextUrl.clone();
+    clean.searchParams.delete("__clerk_handshake");
+    if (path === "/" || path.startsWith("/sign-in") || path.startsWith("/sign-up")) {
+      return NextResponse.redirect(clean);
+    }
   }
 
   if (path === "/" || path === "/api/health") {
