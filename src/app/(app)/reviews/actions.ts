@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAccess, assertCanWriteManagerReview, assertHrAdmin } from "@/lib/auth";
@@ -44,7 +45,7 @@ export async function saveSelfReview(formData: FormData) {
   const id = String(formData.get("id") || "");
   const review = await prisma.review.findUnique({
     where: { id },
-    include: { employee: true, reviewer: { include: { user: true } } },
+    include: { employee: true, reviewer: { include: { user: true } }, cycle: true },
   });
   if (!review) notFound();
   if (review.employeeId !== access.selfId) notFound();
@@ -77,13 +78,28 @@ export async function saveSelfReview(formData: FormData) {
     ),
   ]);
   if (next === REVIEW_STATES.self_appraisal_submitted && review.reviewer?.user.email) {
-    await emailReviewEvent({
-      toEmail: review.reviewer.user.email,
-      toName: fullName(review.reviewer),
-      subject: `${fullName(review.employee)} submitted a self-appraisal`,
-      body: "A self-appraisal is waiting on you in Helix PMS.",
-      reviewId: id,
-    });
+    try {
+      const cookie = (await headers()).get("cookie") ?? "";
+      const origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const res = await fetch(`${origin}/api/notify-manager`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({
+          employeeName: fullName(review.employee),
+          cycleName: review.cycle.name,
+          reviewId: id,
+          managerEmail: review.reviewer.user.email,
+        }),
+      });
+      if (!res.ok) {
+        console.error("[notify-manager] HTTP", res.status);
+      }
+    } catch (err) {
+      console.error("[notify-manager] side effect failed", err);
+    }
   }
   revalidatePath(`/reviews/${id}`);
   revalidatePath("/reviews");
