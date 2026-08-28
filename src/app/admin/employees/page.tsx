@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabase";
+import { AddEmployeeForm } from "./add-employee-form";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,8 @@ export default async function AdminEmployeesPage() {
       <div className="mx-auto max-w-6xl">
         <h1 className="serif text-3xl text-[#162329]">Employees</h1>
         <p className="mt-2 text-sm text-[#3d4f56]">Everyone in the Helix directory.</p>
+
+        <AddEmployeeForm managers={rows.map((row) => ({ id: row.id, full_name: row.full_name }))} />
 
         {error ? (
           <p className="mt-8 text-sm text-red-800">Could not load employees.</p>
