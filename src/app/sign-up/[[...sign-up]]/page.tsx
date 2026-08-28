@@ -6,10 +6,11 @@ export default function SignUpPage() {
       <div className="w-full max-w-md">
         <h1 className="serif text-3xl mb-6 text-center">Create a Helix PMS account</h1>
         <p className="text-sm text-[#3d4f56] text-center mb-6">
-          Sign up with the same work email that HR stored on your employee record.
+          Use any email you can access. Helix creates your employee record on first sign-in as role employee. HR can
+          change your role later.
         </p>
         <div className="flex justify-center">
-          <SignUp />
+          <SignUp forceRedirectUrl="/dashboard" signInUrl="/sign-in" />
         </div>
       </div>
     </main>

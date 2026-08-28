@@ -29,6 +29,38 @@ function clerkEmail(user: {
   return (primary?.emailAddress ?? user.emailAddresses[0]?.emailAddress ?? "").toLowerCase();
 }
 
+function clerkFullName(
+  user: { firstName: string | null; lastName: string | null; fullName: string | null },
+  email: string,
+) {
+  const fromParts = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+  const name = fromParts || user.fullName?.trim() || "";
+  return name || email.split("@")[0];
+}
+
+async function createEmployeeFromClerk(userId: string, email: string, fullName: string) {
+  const { data, error } = await supabaseServer()
+    .from("employees")
+    .insert({
+      clerk_user_id: userId,
+      full_name: fullName,
+      email,
+      designation: "Staff",
+      department: "Unassigned",
+      date_of_joining: new Date().toISOString().slice(0, 10),
+      role: "employee",
+      is_active: true,
+    })
+    .select(EMPLOYEE_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[current-employee] create failed", error.message);
+    return null;
+  }
+  return data as CurrentEmployee | null;
+}
+
 /**
  * Runs on the server (React cache, one lookup per request).
  * Clerk email is not a secret, but clerk_user_id writes and the employee row must stay off the client.
@@ -49,7 +81,14 @@ export const getCurrentEmployee = cache(async (): Promise<CurrentEmployee | null
     .ilike("email", email)
     .maybeSingle();
 
-  if (error || !row) return null;
+  if (error) {
+    console.error("[current-employee] lookup failed", error.message);
+    return null;
+  }
+
+  if (!row) {
+    return createEmployeeFromClerk(userId, email, clerkFullName(user, email));
+  }
 
   const employee = row as CurrentEmployee;
   if (!employee.clerk_user_id) {

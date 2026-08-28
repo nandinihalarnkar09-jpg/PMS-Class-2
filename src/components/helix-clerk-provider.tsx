@@ -6,6 +6,8 @@ export function HelixClerkProvider({ children }: { children: React.ReactNode }) 
   return (
     <ClerkProvider
       afterSignOutUrl="/"
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
       allowedRedirectOrigins={[
         "http://localhost:3000",
         "http://127.0.0.1:3000",

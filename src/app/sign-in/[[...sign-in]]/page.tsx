@@ -15,12 +15,13 @@ export default function SignInPage() {
         <div className="relative max-w-lg">
           <h1 className="serif text-5xl leading-[1.1] font-medium">Sign in to the appraisal workspace.</h1>
           <p className="mt-6 text-[#d8cfc0] text-lg">
-            Use your work email. Helix matches that email to your employee row and applies your role.
+            Sign in with the email you used to create your Clerk account. Helix will open your dashboard after a
+            successful login.
           </p>
         </div>
       </section>
       <section className="flex items-center justify-center p-8">
-        <SignIn />
+        <SignIn forceRedirectUrl="/dashboard" signUpUrl="/sign-up" />
       </section>
     </main>
   );
