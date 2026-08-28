@@ -47,7 +47,10 @@ cp .env.example .env
 3. Create a Supabase project. From **Project Settings → Database**:
    - `DATABASE_URL` — transaction pooler (port **6543**) with `?pgbouncer=true`
    - `DIRECT_URL` — direct connection (port **5432**)
-   - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — from API settings
+   - `SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL` — project URL
+   - `SUPABASE_PUBLISHABLE_KEY` (also `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) — publishable key for the browser
+   - `SUPABASE_SECRET_KEY` — server only; never prefix with `NEXT_PUBLIC_`
+   - `SUPABASE_JWKS_URL` — JWT keys URL from API settings
 
 4. Create a Resend API key. Verify a sending domain, then set `RESEND_FROM`. Without `RESEND_API_KEY`, mail is logged and skipped.
 
