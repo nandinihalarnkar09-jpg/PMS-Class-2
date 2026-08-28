@@ -1,30 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Outfit } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const sans = Outfit({
   subsets: ["latin"],
+  variable: "--font-sans",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const serif = Fraunces({
   subsets: ["latin"],
+  variable: "--font-serif",
 });
 
 export const metadata: Metadata = {
-  title: "Performance",
-  description:
-    "A simple performance management system for a 200-person services company.",
+  title: "Helix PMS",
+  description: "Performance management for Helix Consulting",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export const dynamic = "force-dynamic";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en">
+      <body className={`${sans.variable} ${serif.variable} antialiased`}>{children}</body>
     </html>
   );
 }
