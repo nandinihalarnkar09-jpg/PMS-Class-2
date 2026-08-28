@@ -8,6 +8,9 @@ function navFor(role: EmployeeRole) {
     { href: "/goals", label: "My Goals" },
     { href: "/reviews", label: "My Review" },
   ];
+  if (role === "manager" || role === "hr_admin") {
+    items.push({ href: "/team/goals", label: "Team Goals" });
+  }
   if (role === "manager") {
     items.push({ href: "/my-team", label: "My Team" });
   }

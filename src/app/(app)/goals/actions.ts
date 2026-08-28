@@ -15,6 +15,7 @@ export type GoalRow = {
   weightage: number;
   target_date: string | null;
   status: GoalStatus;
+  manager_comment: string | null;
 };
 
 async function openCycle() {
@@ -30,7 +31,7 @@ async function openCycle() {
 async function ownGoal(id: string, employeeId: string) {
   const { data } = await supabaseServer()
     .from("goals")
-    .select("id, employee_id, cycle_id, title, description, weightage, target_date, status")
+    .select("id, employee_id, cycle_id, title, description, weightage, target_date, status, manager_comment")
     .eq("id", id)
     .eq("employee_id", employeeId)
     .maybeSingle();
@@ -66,7 +67,7 @@ export async function updateGoal(formData: FormData) {
   const me = await requireEmployee();
   const id = String(formData.get("id") || "");
   const goal = await ownGoal(id, me.id);
-  if (!goal || goal.status !== "draft") return;
+  if (!goal || (goal.status !== "draft" && goal.status !== "sent_back")) return;
 
   await supabaseServer()
     .from("goals")
@@ -78,7 +79,7 @@ export async function updateGoal(formData: FormData) {
     })
     .eq("id", goal.id)
     .eq("employee_id", me.id)
-    .eq("status", "draft");
+    .in("status", ["draft", "sent_back"]);
 
   revalidatePath("/goals");
 }
@@ -112,7 +113,7 @@ export async function submitAllGoals() {
     .update({ status: "submitted" })
     .eq("employee_id", me.id)
     .eq("cycle_id", cycle.id)
-    .eq("status", "draft");
+    .in("status", ["draft", "sent_back"]);
 
   revalidatePath("/goals");
 }

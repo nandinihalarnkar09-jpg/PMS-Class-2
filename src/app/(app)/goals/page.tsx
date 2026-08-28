@@ -33,7 +33,7 @@ export default async function GoalsPage() {
 
   const { data } = await supabaseServer()
     .from("goals")
-    .select("id, employee_id, cycle_id, title, description, weightage, target_date, status")
+    .select("id, employee_id, cycle_id, title, description, weightage, target_date, status, manager_comment")
     .eq("employee_id", me.id)
     .eq("cycle_id", cycle.id)
     .order("created_at", { ascending: true })
@@ -98,13 +98,18 @@ export default async function GoalsPage() {
         <ul className="mt-8 space-y-3">
           {goals.map((goal) => (
             <li key={goal.id} className="rounded-xl border border-[#d8cfc0] bg-white p-4">
-              {goal.status === "draft" ? (
+              {goal.status === "draft" || goal.status === "sent_back" ? (
                 <form action={updateGoal} className="space-y-3">
                   <input type="hidden" name="id" value={goal.id} />
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span className="uppercase tracking-wide text-[#c24e1d]">{goal.status}</span>
                     <span>{goal.weightage}%</span>
                   </div>
+                  {goal.status === "sent_back" && goal.manager_comment ? (
+                    <p className="rounded-md bg-[#f8e8e0] px-3 py-2 text-sm text-[#5a2410]">
+                      Manager: {goal.manager_comment}
+                    </p>
+                  ) : null}
                   <input className={field} name="title" defaultValue={goal.title} />
                   <textarea className={`${field} min-h-16`} name="description" defaultValue={goal.description ?? ""} />
                   <div className="grid gap-3 sm:grid-cols-2">
