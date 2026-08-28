@@ -6,7 +6,7 @@ function navFor(role: EmployeeRole) {
   const items = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/goals", label: "My Goals" },
-    { href: "/reviews", label: "My Review" },
+    { href: "/my-review", label: "My Review" },
   ];
   if (role === "manager" || role === "hr_admin") {
     items.push({ href: "/team/goals", label: "Team Goals" });
