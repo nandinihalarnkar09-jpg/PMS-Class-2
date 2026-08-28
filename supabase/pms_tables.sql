@@ -154,3 +154,23 @@ create index if not exists reviews_manager_id_idx on reviews (manager_id);
 create index if not exists reviews_cycle_id_idx on reviews (cycle_id);
 create index if not exists goal_ratings_review_id_idx on goal_ratings (review_id);
 create index if not exists goal_ratings_goal_id_idx on goal_ratings (goal_id);
+
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update, delete on table employees, review_cycles, goals, reviews, goal_ratings
+  to anon, authenticated, service_role;
+
+notify pgrst, 'reload schema';
+
+insert into employees (full_name, email, designation, department, date_of_joining, role)
+values
+  ('Asha Rao', 'employee@helix.consulting', 'Consultant', 'Delivery', '2023-04-01', 'employee'),
+  ('Vikram Shah', 'manager@helix.consulting', 'Engagement Manager', 'Delivery', '2019-08-12', 'manager'),
+  ('Meera Iyer', 'hr@helix.consulting', 'HR Business Partner', 'People', '2018-01-15', 'hr_admin')
+on conflict (email) do nothing;
+
+update employees e
+set manager_id = m.id
+from employees m
+where e.email = 'employee@helix.consulting'
+  and m.email = 'manager@helix.consulting'
+  and e.manager_id is null;
