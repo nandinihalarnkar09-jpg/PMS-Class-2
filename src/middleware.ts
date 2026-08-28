@@ -17,6 +17,14 @@ const clerk = clerkMiddleware(async (auth, req) => {
 
 export default function middleware(req: NextRequest, event: NextFetchEvent) {
   const path = req.nextUrl.pathname;
+
+  // Clerk's handshake query is too large for the Cursor preview proxy.
+  // Send the browser to local Next.js instead of hanging on "could not be routed".
+  if (req.nextUrl.searchParams.has("__clerk_handshake")) {
+    const local = new URL("http://localhost:3000/sign-in");
+    return NextResponse.redirect(local);
+  }
+
   if (path === "/" || path === "/api/health") {
     return NextResponse.next();
   }
