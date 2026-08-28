@@ -22,30 +22,27 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const html = (
-    <html lang="en">
-      <body className={`${sans.variable} ${serif.variable} antialiased`}>{children}</body>
-    </html>
-  );
-
-  if (!isClerkConfigured()) {
-    return html;
-  }
-
-  return (
+  const inner = isClerkConfigured() ? (
     <ClerkProvider
       afterSignOutUrl="/"
       appearance={{
         variables: {
           colorPrimary: "#c24e1d",
           colorBackground: "#f4efe6",
-          colorText: "#162329",
           borderRadius: "0.5rem",
           fontFamily: "var(--font-sans)",
         },
       }}
     >
-      {html}
+      {children}
     </ClerkProvider>
+  ) : (
+    children
+  );
+
+  return (
+    <html lang="en">
+      <body className={`${sans.variable} ${serif.variable} antialiased`}>{inner}</body>
+    </html>
   );
 }

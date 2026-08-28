@@ -1,7 +1,9 @@
-"use client";
-
-import { UserButton } from "@clerk/nextjs";
+import { Show, UserButton } from "@clerk/nextjs";
 
 export function UserMenu() {
-  return <UserButton />;
+  return (
+    <Show when="signed-in">
+      <UserButton />
+    </Show>
+  );
 }

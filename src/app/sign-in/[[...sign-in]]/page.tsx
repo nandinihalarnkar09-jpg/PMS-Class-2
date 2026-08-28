@@ -29,24 +29,9 @@ export default function SignInPage() {
           <div className="max-w-md space-y-4 text-[#162329]">
             <h2 className="serif text-2xl">Clerk keys are not set yet</h2>
             <p className="text-sm leading-6 text-[#3d4f56]">
-              The previous publishable key pointed at clerk.helix-pms.accounts.dev, which is not a real Clerk app, so
-              the browser showed ERR_SSL_VERSION_OR_CIPHER_MISMATCH.
+              This project is linked to Clerk app <code className="text-xs">app_3IWJOUtTlOTuy1xfMODe1McNKQe</code>.
+              Sign-in widgets load after Clerk keys are available in the environment.
             </p>
-            <ol className="list-decimal pl-5 text-sm leading-6 text-[#3d4f56] space-y-2">
-              <li>
-                Create an application at{" "}
-                <a className="underline" href="https://dashboard.clerk.com" target="_blank" rel="noreferrer">
-                  dashboard.clerk.com
-                </a>
-              </li>
-              <li>
-                Copy <code className="text-xs">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and{" "}
-                <code className="text-xs">CLERK_SECRET_KEY</code> into <code className="text-xs">.env</code>
-              </li>
-              <li>
-                Restart <code className="text-xs">npm run dev</code>
-              </li>
-            </ol>
             <a href="/" className="inline-block text-sm underline">
               Back to home
             </a>

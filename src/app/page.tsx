@@ -1,16 +1,11 @@
-import Link from "next/link";
+import { HeaderAuth } from "@/components/header-auth";
 
 export default function Home() {
   return (
     <main className="min-h-screen">
       <header className="flex items-center justify-between px-6 py-5 max-w-5xl mx-auto">
         <p className="text-lg font-medium tracking-tight">Helix PMS</p>
-        <Link
-          href="/sign-in"
-          className="rounded-md border border-[#d8cfc0] bg-white px-4 py-2 text-sm"
-        >
-          Sign In
-        </Link>
+        <HeaderAuth />
       </header>
 
       <section className="max-w-5xl mx-auto px-6 pt-16 pb-10">
